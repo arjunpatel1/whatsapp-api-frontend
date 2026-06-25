@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Local databases
+data.db
+data.db-shm
+data.db-wal
+
+# Private credentials
+.env

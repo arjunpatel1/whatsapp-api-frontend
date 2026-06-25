@@ -1,0 +1,107 @@
+import React, { useState, useContext } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
+import { api } from '../../utils/api';
+import { MessageSquare } from 'lucide-react';
+
+const Signup = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    if (password !== confirmPassword) {
+      return setError('Passwords do not match');
+    }
+
+    setLoading(true);
+    try {
+      const res = await api('POST', '/api/auth/register', { email, password });
+      if (res.token) {
+        setSuccess('Signup successful! You can now login.');
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+      }
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
+      <div style={{ width: '400px', backgroundColor: 'var(--white)', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <div style={{ width: '48px', height: '48px', backgroundColor: 'var(--green)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 15px' }}>
+            <MessageSquare size={28} />
+          </div>
+          <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Create an Account</h1>
+          <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Join WA Business Platform</p>
+        </div>
+
+        {error && <div style={{ padding: '10px', backgroundColor: 'var(--red-light)', color: 'var(--red)', borderRadius: '6px', marginBottom: '20px', fontSize: '14px' }}>{error}</div>}
+        {success && <div style={{ padding: '12px', backgroundColor: '#e8f5e9', color: '#2e7d32', borderRadius: '6px', marginBottom: '20px', fontSize: '14px', lineHeight: '1.5', border: '1px solid #c8e6c9', textAlign: 'center' }}>
+          {success}
+          <div style={{ marginTop: '10px' }}>
+            <Link to="/login" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>Click here to Sign In</Link>
+          </div>
+        </div>}
+
+        <form onSubmit={handleSignup}>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text)' }}>Email <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
+              placeholder="name@company.com"
+              required 
+            />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text)' }}>Password <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input 
+              type="password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
+              placeholder="Min. 6 characters"
+              required 
+            />
+          </div>
+          <div style={{ marginBottom: '30px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text)' }}>Confirm Password <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input 
+              type="password" 
+              value={confirmPassword} 
+              onChange={e => setConfirmPassword(e.target.value)} 
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
+              placeholder="Repeat password"
+              required 
+            />
+          </div>
+          <button type="submit" disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Signing Up...' : 'Sign Up'}
+          </button>
+          
+          <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: 'var(--text-mid)' }}>
+            Already have an account? <Link to="/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '600' }}>Sign In</Link>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default Signup;
