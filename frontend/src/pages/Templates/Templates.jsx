@@ -4,6 +4,7 @@ import { api } from '../../utils/api';
 import { LayoutTemplate, RefreshCw, Plus, Search, Copy, Code, Trash2, Edit, Send } from 'lucide-react';
 import TemplateBuilderModal from './TemplateBuilderModal';
 import JsonModal from '../../components/ui/JsonModal';
+import SendTemplateModal from './SendTemplateModal';
 
 const Templates = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const Templates = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [jsonModalData, setJsonModalData] = useState(null);
   const [editTemplate, setEditTemplate] = useState(null);
+  const [sendTemplateData, setSendTemplateData] = useState(null);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -239,8 +241,8 @@ const Templates = () => {
                         <button onClick={() => deleteTemplate(t.id)} style={{ padding: '4px 8px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', border: 'none', backgroundColor: 'var(--red-light)', color: 'var(--red)', borderRadius: '4px', cursor: 'pointer' }}>
                           <Trash2 size={12} />
                         </button>
-                        <button onClick={() => navigate('/numbers')} style={{ padding: '4px 8px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px', border: 'none', backgroundColor: 'var(--blue-light)', color: 'var(--blue)', borderRadius: '4px', cursor: 'pointer' }}>
-                          <Send size={12} style={{ fill: 'var(--blue)' }} /> Send
+                        <button onClick={() => setSendTemplateData(t)} style={{ padding: '6px 12px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', border: 'none', backgroundColor: 'var(--primary, #1565c0)', color: 'white', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                          <Send size={12} /> Send
                         </button>
                       </div>
                     </td>
@@ -264,6 +266,12 @@ const Templates = () => {
         onClose={() => setJsonModalData(null)}
         jsonData={jsonModalData}
         title="Template JSON"
+      />
+      <SendTemplateModal 
+        isOpen={!!sendTemplateData}
+        onClose={() => setSendTemplateData(null)}
+        template={sendTemplateData}
+        accounts={accounts}
       />
     </div>
   );

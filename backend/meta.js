@@ -122,9 +122,10 @@ function buildTemplatePayload(tpl) {
 
   if (tpl.body) {
     const bc = { type: 'BODY', text: tpl.body };
-    const vars = tpl.body.match(/\{\{(\d+)\}\}/g);
-    if (vars) {
-      bc.example = { body_text: [vars.map((_, i) => `Example${i + 1}`)] };
+    const rawVars = tpl.body.match(/\{\{(\d+)\}\}/g);
+    if (rawVars) {
+      const vars = [...new Set(rawVars)].sort();
+      bc.example = { body_text: [vars.map((_, i) => `Example ${i + 1}`)] };
     }
     components.push(bc);
   }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../utils/api';
-import { MessageSquare, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import WhatsAppIcon from '../../components/WhatsAppIcon';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -36,7 +37,7 @@ const ForgotPassword = () => {
 
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <div style={{ width: '48px', height: '48px', backgroundColor: 'var(--green)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 15px' }}>
-            <MessageSquare size={28} />
+            <WhatsAppIcon size={28} />
           </div>
           <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Reset Password</h1>
           <p style={{ color: 'var(--text-mid)', marginTop: '5px', fontSize: '14px', lineHeight: '1.5' }}>

@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
-import { MessageSquare } from 'lucide-react';
+import WhatsAppIcon from '../../components/WhatsAppIcon';
 
 const Signup = () => {
   const [email, setEmail] = useState('');
@@ -43,7 +43,7 @@ const Signup = () => {
       <div style={{ width: '400px', backgroundColor: 'var(--white)', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <div style={{ width: '48px', height: '48px', backgroundColor: 'var(--green)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 15px' }}>
-            <MessageSquare size={28} />
+            <WhatsAppIcon size={28} />
           </div>
           <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Create an Account</h1>
           <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Join WA Business Platform</p>

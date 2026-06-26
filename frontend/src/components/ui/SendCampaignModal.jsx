@@ -186,7 +186,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
 
       if (text) {
         for (let i = 1; i <= variableCount; i++) {
-          const val = variables[i] || '';
+          const val = variables[i] || `{{${i}}}`;
           text = text.replace(new RegExp(`\\{\\{${i}\\}\\}`, 'g'), val);
         }
         return text;

@@ -1,140 +1,120 @@
-# WhatsApp Business Platform — Production Backend
+# WhatsApp Business SaaS Platform
 
-Real-time WhatsApp Business API platform using Meta Cloud API.
+A full-stack WhatsApp Business Platform powered by the Meta Cloud API. This platform allows you to manage multiple WhatsApp Numbers, create/sync message templates, launch bulk campaigns, and handle automated opt-outs.
 
-## Architecture
+## Tech Stack
+- **Frontend:** React + Vite
+- **Backend:** Node.js + Express
+- **Database:** MongoDB
+- **API:** Meta WhatsApp Cloud API (v21.0)
 
-```
-Browser (Frontend)
-      ↓ REST API calls
-Express Server (server.js)
-      ↓ Meta Cloud API calls
-graph.facebook.com/v21.0
-      ↓ Webhook delivery updates
-Express Server (/webhook endpoint)
-      ↓ Store in database
-SQLite (data.db)
-```
+---
 
-## Quick Start
+## 🚀 Quick Start (Local Development)
 
-### 1. Install dependencies
+### 1. Backend Setup
+1. Open a terminal and navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create your environment file:
+   ```bash
+   cp .env.example .env
+   ```
+   *Edit `.env` and configure your `MONGODB_URI`.*
+4. Start the backend server:
+   ```bash
+   npm run dev
+   ```
+
+### 2. Frontend Setup
+1. Open a new terminal and navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+4. Open http://localhost:5173 in your browser.
+
+---
+
+## 🌍 Production Deployment (Main Server)
+
+When deploying to your main server (e.g., Ubuntu VPS), follow these steps to serve both the frontend and backend from the same Express server.
+
+### 1. Clone & Install
 ```bash
+git clone your-repo-url
+cd wa-business-platform
+
+# Install Backend
+cd backend
+npm install --production
+
+# Install Frontend
+cd ../frontend
 npm install
 ```
 
-### 2. Configure credentials
+### 2. Build the Frontend
+You must compile the React code into static files for production.
 ```bash
-cp .env.example .env
-# Edit .env and fill in your Meta credentials
+cd frontend
+npm run build
 ```
+This will generate a `dist` folder.
 
-### 3. Get Meta credentials
-1. Go to https://developers.facebook.com/apps/
-2. Create app → Add WhatsApp product
-3. WhatsApp → API Setup → get:
-   - **Phone Number ID** (numeric)
-   - **Temporary Access Token** (use System User for production)
-4. WhatsApp Manager → get:
-   - **WhatsApp Business Account ID (WABA ID)**
-
-### 4. Start the server
+### 3. Copy Build to Backend
+Copy the generated frontend build into the backend's `public` folder so Express can serve it.
 ```bash
-npm start
-# or for development:
-npm run dev
+# From the frontend folder:
+mkdir -p ../backend/public
+cp -R dist/* ../backend/public/
 ```
 
-### 5. Open the app
-```
-http://localhost:3000
-```
-
-### 6. Configure webhook (for delivery updates)
-1. Expose your server publicly using ngrok:
-   ```bash
-   npx ngrok http 3000
-   ```
-2. Copy the ngrok HTTPS URL
-3. Set in .env: `PUBLIC_URL=https://xxxx.ngrok.io`
-4. In Meta App Dashboard → WhatsApp → Configuration:
-   - Webhook URL: `https://xxxx.ngrok.io/webhook`
-   - Verify Token: same as `WEBHOOK_VERIFY_TOKEN` in .env
-   - Subscribe to: **messages** field
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /api/send/template | Send template message |
-| POST | /api/send/text | Send text message |
-| POST | /api/send/media | Send media message |
-| GET | /api/templates | List all templates |
-| POST | /api/templates | Create/save template |
-| POST | /api/templates/sync | Sync from Meta |
-| DELETE | /api/templates/:id | Delete template |
-| GET | /api/logs | Message logs |
-| DELETE | /api/logs | Clear logs |
-| GET | /api/logs/export | Export CSV |
-| POST | /api/campaigns/launch | Launch bulk campaign |
-| GET | /api/campaigns/:id/progress | Campaign progress |
-| POST | /api/campaigns/upload-csv | Upload contacts CSV |
-| GET | /api/dashboard | Stats & health |
-| GET | /api/webhook/events | Webhook event log |
-| GET | /api/blacklist | Blacklisted numbers |
-| POST | /api/blacklist | Add to blacklist |
-| DELETE | /api/blacklist/:phone | Remove from blacklist |
-| GET | /api/optout/keywords | Opt-out keywords |
-| POST | /api/optout/keywords | Add keyword |
-| GET | /api/bots | Auto-reply rules |
-| POST | /api/bots | Create bot rule |
-| GET | /health | Server health check |
-| GET | /webhook | Meta webhook verification |
-| POST | /webhook | Receive Meta events |
-
-## CSV Format for Campaigns
-
-```csv
-phone,var1,var2,var3
-919876543210,Ravi Kumar,ORD001,₹500
-918765432109,Priya Sharma,ORD002,₹1200
-```
-
-## Production Deployment
-
-### On a VPS (Ubuntu)
+### 4. Start the Server with PM2
 ```bash
-# Install Node.js 18+
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
+cd ../backend
 
-# Clone your code
-git clone your-repo && cd wa-business-platform
-npm install --production
+# Ensure you have your .env file configured!
+nano .env 
 
-# Use PM2 for process management
+# Install PM2 globally
 npm install -g pm2
-pm2 start server.js --name wa-platform
-pm2 save && pm2 startup
 
-# Setup nginx reverse proxy
-sudo apt install nginx
-# Point nginx to http://localhost:3000
+# Start the application
+pm2 start server.js --name wa-platform
+pm2 save
+pm2 startup
 ```
 
-### Environment Variables
-All in `.env` file:
-- `META_ACCESS_TOKEN` — Your permanent System User token
-- `META_PHONE_NUMBER_ID` — Numeric Phone Number ID from Meta
-- `META_WABA_ID` — WhatsApp Business Account ID
-- `WEBHOOK_VERIFY_TOKEN` — Any string you set in Meta Dashboard
-- `API_SECRET_KEY` — Random string to protect your API endpoints
-- `PUBLIC_URL` — Your public HTTPS URL (for webhook display)
-- `PORT` — Server port (default 3000)
+### 5. Reverse Proxy (Nginx)
+Point Nginx or Apache to `http://localhost:3000` (or whatever `PORT` you specified in your `.env` file).
 
-## Security Notes
-- Credentials stored in SQLite on server — never sent to browser
-- API key protection on all `/api/*` routes in production
-- Rate limiting: 120 req/min general, 60 sends/min
-- Blacklist checked before every message
-- Opt-out handled server-side via webhook
+---
+
+## 🔗 Meta API Configuration
+
+To receive delivery statuses (Sent, Delivered, Read, Failed) and handle incoming messages (Opt-outs, Bot replies), you must configure a Webhook in your Meta App Dashboard.
+
+1. Go to **Meta App Dashboard → WhatsApp → Configuration**
+2. Click **Edit Webhook**
+3. **Webhook URL:** `https://your-domain.com/webhook`
+4. **Verify Token:** Must match the `WEBHOOK_VERIFY_TOKEN` in your backend `.env` file.
+5. Under **Webhook Fields**, click **Manage** and subscribe to:
+   - `messages`
+
+## 🔒 Security
+- Always use HTTPS on your main server. Meta webhooks **require** a valid SSL certificate.
+- Ensure your MongoDB instance is secured with authentication.
+- Keep your Meta `System User Token` strictly confidential.

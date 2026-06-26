@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { MessageSquare, LayoutDashboard, Hash, FileText, Library, Settings, Webhook, ShieldAlert, Ban, LogOut, LifeBuoy } from 'lucide-react';
+import WhatsAppIcon from '../WhatsAppIcon';
 
 const AppLayout = () => {
   const { logout } = useContext(AuthContext);
@@ -35,7 +36,7 @@ const AppLayout = () => {
       <aside style={{ width: 'var(--sidebar-w)', backgroundColor: 'var(--white)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ width: '32px', height: '32px', backgroundColor: 'var(--green)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-            <MessageSquare size={20} />
+            <WhatsAppIcon size={20} />
           </div>
           <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>WhatsApp</h2>
         </div>

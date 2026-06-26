@@ -771,7 +771,9 @@ app.post('/api/templates', requireAuth, async (req, res) => {
       row.meta_id = result.id;
       row.status  = result.status || 'PENDING';
     } catch (e) {
-      return res.status(400).json({ error: e.response?.data?.error?.message || e.message });
+      const errData = e.response?.data?.error;
+      const errorMsg = errData?.error_user_msg || errData?.message || e.message;
+      return res.status(400).json({ error: errorMsg });
     }
   }
 

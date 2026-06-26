@@ -223,7 +223,15 @@ const Numbers = () => {
                     </button>
                   </td>
                   <td style={{ padding: '13px 14px', fontWeight: '600', fontSize: '13px' }}>{acc.package || acc.packageId || 'None'}</td>
-                  <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px', whiteSpace: 'nowrap' }}>{acc.subscriptionPeriod || '-'}</td>
+                  <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                    {acc.subscriptionExpiresAt ? (() => {
+                      const end = new Date(acc.subscriptionExpiresAt);
+                      const start = new Date(end);
+                      start.setDate(start.getDate() - 30);
+                      const formatDt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      return `${formatDt(start)} - ${formatDt(end)}`;
+                    })() : '-'}
+                  </td>
                   <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px' }}>{acc.autoRecharge ? 'Yes' : 'No'}</td>
                   <td style={{ padding: '16px', position: 'relative', textAlign: 'center' }}>
                     <button 
@@ -328,24 +336,7 @@ const Numbers = () => {
                   </select>
                 </div>
 
-                <div style={{ marginTop: '14px', marginBottom: '0' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>Subscription Period</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <select value={periodMonth} onChange={handleMonthChange} style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: '#fff', boxSizing: 'border-box' }}>
-                      <option value="">-- Select Month --</option>
-                      {MONTHS.map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}
-                    </select>
-                    <select value={periodYear} onChange={handleYearChange} style={{ width: '100px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: '#fff', boxSizing: 'border-box' }}>
-                      <option value="">Year</option>
-                      {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
-                    </select>
-                  </div>
-                  {formData.subscriptionPeriod && (
-                    <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-mid)' }}>
-                      Period: <strong>{formData.subscriptionPeriod}</strong>
-                    </div>
-                  )}
-                </div>
+
 
                 <div style={{ marginTop: '16px', background: '#fff3e0', border: '1px solid #ffe0b2', padding: '12px', borderRadius: '6px', fontSize: '12px', color: '#e65100' }}>
                   <strong>Note:</strong> A ₹500 subscription fee will be deducted from your Wallet Balance to activate this number for 1 month.

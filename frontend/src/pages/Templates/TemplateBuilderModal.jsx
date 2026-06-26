@@ -125,8 +125,18 @@ const TemplateBuilderModal = ({ isOpen, onClose, onSave, initialData }) => {
     
     setLoading(true);
     try {
-      // Simulate Meta API call
-      await api('POST', '/api/templates', formData);
+      const payload = {
+        name: formData.name,
+        category: formData.category,
+        language: formData.language,
+        header_type: formData.headerType,
+        header_text: formData.headerText,
+        body: formData.bodyText,
+        footer: formData.footerText,
+        buttons: formData.buttons,
+        submitToMeta: true
+      };
+      await api('POST', '/api/templates', payload);
       alert('Template submitted to Meta successfully!');
       onSave();
       onClose();
