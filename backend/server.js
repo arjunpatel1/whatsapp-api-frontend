@@ -71,14 +71,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ─── RATE LIMITING ───────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 120,
+  max: 5000,
   message: { error: 'Too many requests, slow down.' },
 });
 app.use('/api/', apiLimiter);
 
 const sendLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60, // Max 60 sends per minute per IP
+  max: 5000, // Max 60 sends per minute per IP
   message: { error: 'Send rate limit exceeded.' },
 });
 
