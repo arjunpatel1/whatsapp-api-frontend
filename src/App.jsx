@@ -29,11 +29,12 @@ const App = () => {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          
-          <Route path="/" element={
+
+          <Route path="/dashboard" element={
             <ProtectedRoute>
               <AppLayout />
             </ProtectedRoute>
@@ -44,7 +45,7 @@ const App = () => {
             <Route path="library" element={<TemplateLibrary />} />
             <Route path="logs" element={<Logs />} />
             <Route path="packages" element={<Packages />} />
-            
+
             {/* Settings */}
             <Route path="settings" element={<ApiSettings />} />
             <Route path="webhook" element={<WebhookConfig />} />

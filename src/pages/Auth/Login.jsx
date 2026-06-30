@@ -2,7 +2,6 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
-import WhatsAppIcon from '../../components/WhatsAppIcon';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -18,7 +17,7 @@ const Login = () => {
       const res = await api('POST', '/api/auth/login', { email, password });
       if (res.token) {
         login(res.token);
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -29,11 +28,11 @@ const Login = () => {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
       <div style={{ width: '400px', backgroundColor: 'var(--white)', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{ width: '48px', height: '48px', backgroundColor: 'var(--green)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 15px' }}>
-            <WhatsAppIcon size={28} />
+          <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
+            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Welcome Back</h1>
-          <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Sign in to WA Business Platform</p>
+          <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Sign in to Nexmsg</p>
         </div>
 
         {error && <div style={{ padding: '10px', backgroundColor: 'var(--red-light)', color: 'var(--red)', borderRadius: '6px', marginBottom: '20px', fontSize: '14px' }}>{error}</div>}
@@ -46,7 +45,7 @@ const Login = () => {
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
-              placeholder="name@company.com"
+              placeholder="Enter email"
               required 
             />
           </div>
@@ -57,6 +56,7 @@ const Login = () => {
               value={password} 
               onChange={e => setPassword(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none', marginBottom: '8px' }}
+              placeholder="Enter Password"
               required 
             />
             <div style={{ textAlign: 'right' }}>

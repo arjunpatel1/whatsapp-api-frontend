@@ -2,7 +2,6 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
-import WhatsAppIcon from '../../components/WhatsAppIcon';
 
 const Signup = () => {
   const [email, setEmail] = useState('');
@@ -42,18 +41,18 @@ const Signup = () => {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
       <div style={{ width: '400px', backgroundColor: 'var(--white)', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <div style={{ width: '48px', height: '48px', backgroundColor: 'var(--green)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 15px' }}>
-            <WhatsAppIcon size={28} />
+          <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
+            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
-          <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Create an Account</h1>
-          <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Join WA Business Platform</p>
+          <h1 style={{ fontSize: '24px', color: 'var(--text)' }}>Create Account</h1>
+          <p style={{ color: 'var(--text-mid)', marginTop: '5px' }}>Get started with Nexmsg</p>
         </div>
 
         {error && <div style={{ padding: '10px', backgroundColor: 'var(--red-light)', color: 'var(--red)', borderRadius: '6px', marginBottom: '20px', fontSize: '14px' }}>{error}</div>}
         {success && <div style={{ padding: '12px', backgroundColor: '#e8f5e9', color: '#2e7d32', borderRadius: '6px', marginBottom: '20px', fontSize: '14px', lineHeight: '1.5', border: '1px solid #c8e6c9', textAlign: 'center' }}>
           {success}
           <div style={{ marginTop: '10px' }}>
-            <Link to="/login" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>Click here to Sign In</Link>
+            <Link to="/" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>Click here to Sign In</Link>
           </div>
         </div>}
 
@@ -65,7 +64,7 @@ const Signup = () => {
               value={email} 
               onChange={e => setEmail(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
-              placeholder="name@company.com"
+              placeholder="Enter email"
               required 
             />
           </div>
@@ -76,7 +75,7 @@ const Signup = () => {
               value={password} 
               onChange={e => setPassword(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
-              placeholder="Min. 6 characters"
+              placeholder="Enter Password"
               required 
             />
           </div>
@@ -87,7 +86,7 @@ const Signup = () => {
               value={confirmPassword} 
               onChange={e => setConfirmPassword(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
-              placeholder="Repeat password"
+              placeholder="Confirm Password"
               required 
             />
           </div>
@@ -96,7 +95,7 @@ const Signup = () => {
           </button>
           
           <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: 'var(--text-mid)' }}>
-            Already have an account? <Link to="/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '600' }}>Sign In</Link>
+            Already have an account? <Link to="/" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: '600' }}>Sign In</Link>
           </div>
         </form>
       </div>
