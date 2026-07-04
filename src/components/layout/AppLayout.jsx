@@ -237,7 +237,7 @@ const AppLayout = () => {
         </div>
       </main>
 
-      {(!user?.companyName || !user?.phone || !user?.address) && (
+      {(user?.role?.toLowerCase() !== 'admin') && (!user?.companyName || !user?.phone || !user?.address) && (
         <OnboardingModal />
       )}
     </div>

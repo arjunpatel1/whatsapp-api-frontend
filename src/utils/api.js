@@ -1,3 +1,5 @@
+import { API_BASE_URL } from './constants';
+
 export const api = async (method, endpoint, data = null) => {
   const token = localStorage.getItem('token');
   const headers = { 'Content-Type': 'application/json' };
@@ -6,7 +8,9 @@ export const api = async (method, endpoint, data = null) => {
   const config = { method, headers };
   if (data) config.body = JSON.stringify(data);
 
-  const res = await fetch(endpoint, config);
+  const base = API_BASE_URL.replace(/\/$/, '');
+  const url = endpoint.startsWith('http') ? endpoint : `${base}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  const res = await fetch(url, config);
   let json;
   try {
     json = await res.json();

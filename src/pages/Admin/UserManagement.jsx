@@ -12,10 +12,12 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const data = await api('GET', '/api/admin/users');
+      const rawData = await api('GET', '/api/admin/users');
+      // Handle both array response and wrapped object {users:[...]} / {data:[...]}
+      const data = Array.isArray(rawData) ? rawData : (rawData.users || rawData.data || Object.values(rawData).find(v => Array.isArray(v)) || []);
       setUsers(data);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load users:', err);
     } finally {
       setLoading(false);
     }
@@ -76,11 +78,11 @@ const UserManagement = () => {
                         backgroundColor: user.status === 'active' ? '#e8f5e9' : user.status === 'pending' ? '#fff3e0' : '#ffebee',
                         color: user.status === 'active' ? '#2e7d32' : user.status === 'pending' ? '#ef6c00' : '#c62828'
                       }}>
-                        {user.status.toUpperCase()}
+                        {(user.status || 'unknown').toUpperCase()}
                       </span>
                     </td>
                     <td style={{ padding: '15px 20px', textAlign: 'right' }}>
-                      {user.status === 'pending' && (
+                      {(!user.status || user.status === 'pending') && (
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button onClick={() => handleStatusChange(user.id || user._id, 'active')} style={{ padding: '6px 12px', backgroundColor: '#4caf50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Approve</button>
                           <button onClick={() => handleStatusChange(user.id || user._id, 'rejected')} style={{ padding: '6px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Reject</button>

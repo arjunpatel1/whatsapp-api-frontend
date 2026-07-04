@@ -10,31 +10,50 @@ const Login = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const decodeJWT = (token) => {
+    try {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload));
+    } catch {
+      return {};
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     try {
       const res = await api('POST', '/api/auth/login', { email, password });
       if (res.token) {
-        const userData = { 
-          email: res.email, 
-          role: res.role, 
-          userId: res.userId,
-          companyName: res.companyName,
-          phone: res.phone,
-          address: res.address
+        const decoded = decodeJWT(res.token);
+        // First login with whatever the backend gives us
+        let userData = { 
+          email: res.email || decoded.email, 
+          role: res.role || decoded.role,
+          userId: res.userId || decoded.userId || decoded.id || decoded._id,
+          companyName: res.companyName || decoded.companyName,
+          phone: res.phone || decoded.phone,
+          address: res.address || decoded.address
         };
         login(res.token, userData);
-        if (res.role === 'admin') {
-          navigate('/dashboard');
-        } else {
-          navigate('/dashboard');
+
+        // Probe admin endpoint to detect actual role
+        try {
+          await api('GET', '/api/admin/users');
+          // If this succeeds, user is admin — update their stored role
+          userData = { ...userData, role: 'admin' };
+          login(res.token, userData);
+        } catch {
+          // Not admin, role stays as-is
         }
+
+        navigate('/dashboard');
       }
     } catch (err) {
       setError(err.message || 'Login failed');
     }
   };
+
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
