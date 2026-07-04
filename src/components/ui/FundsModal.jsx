@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Lock } from 'lucide-react';
 import { api } from '../../utils/api';
 
-const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess }) => {
+const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess, isAdmin }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,13 +26,19 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess 
 
     try {
       if (balanceType === 'acBalance') {
-        // Direct credit/debit for AC Balance
+        // Direct credit/debit for AC Balance (Legacy / Admin only)
         await api('POST', `/api/accounts/${account.id}/ac-balance`, { amount: finalAmount });
         alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} AC Balance successfully!`);
       } else {
-        // WhatsApp Balance (prepaidBalance): funded from/to AC Balance
-        await api('POST', '/api/wallet/transfer', { accountId: account.id, amount: finalAmount, balanceType });
-        alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'moved from WhatsApp Balance to AC Balance' : 'moved from AC Balance to WhatsApp Balance'} successfully!`);
+        if (isAdmin) {
+          // Admin direct credit/debit for WhatsApp Balance
+          await api('POST', `/api/accounts/${account.id}/prepaid-balance`, { amount: finalAmount });
+          alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} WhatsApp Balance successfully!`);
+        } else {
+          // WhatsApp Balance (prepaidBalance): funded from User Wallet (Client only, Credits only)
+          await api('POST', '/api/user-wallet/top-up-number', { accountId: account.id, amount: finalAmount });
+          alert(`₹ ${Math.abs(finalAmount)} moved from User Wallet to WhatsApp Balance successfully!`);
+        }
       }
       onSuccess();
       onClose();

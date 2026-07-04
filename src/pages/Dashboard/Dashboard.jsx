@@ -1,19 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
 import { Send, XCircle, TrendingUp, Activity, RefreshCw } from 'lucide-react';
 
 const Dashboard = () => {
+  const { user } = useContext(AuthContext);
   const [stats, setStats] = useState({
     sent: 0, failed: 0, failRate: 0, sentToday: 0
   });
   const [weekly, setWeekly] = useState([]);
   const [templatePerf, setTemplatePerf] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [adminStats, setAdminStats] = useState({ totalUsers: 0, pendingUsers: 0 });
   const [loading, setLoading] = useState(true);
 
   const loadStats = async () => {
     setLoading(true);
     try {
+      if (user?.role === 'admin') {
+        const usersData = await api('GET', '/api/admin/users');
+        setAdminStats({
+          totalUsers: usersData.filter(u => u.status === 'active').length,
+          pendingUsers: usersData.filter(u => u.status === 'pending').length
+        });
+      }
+
       // Load dashboard stats
       const dashRes = await api('GET', '/api/dashboard');
       if (dashRes.stats) {
@@ -57,7 +68,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [user]);
 
   // Build 7-day chart data from weekly API data
   const buildChartDays = () => {
@@ -95,6 +106,23 @@ const Dashboard = () => {
           <RefreshCw size={16} /> Refresh
         </button>
       </div>
+
+      {user?.role === 'admin' && (
+        <>
+          <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-light)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Platform Stats</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+            <div style={{ backgroundColor: 'var(--white)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '14px', color: 'var(--text-mid)', marginBottom: '10px' }}>Total Active Clients</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--primary)' }}>{adminStats.totalUsers}</div>
+            </div>
+            <div style={{ backgroundColor: 'var(--white)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '14px', color: 'var(--text-mid)', marginBottom: '10px' }}>Pending Approvals</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--orange, #ff9800)' }}>{adminStats.pendingUsers}</div>
+            </div>
+          </div>
+          <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-light)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Message Stats</h2>
+        </>
+      )}
 
       {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>

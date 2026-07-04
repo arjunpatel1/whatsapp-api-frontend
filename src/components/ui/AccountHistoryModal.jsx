@@ -16,7 +16,7 @@ const AccountHistoryModal = ({ isOpen, onClose, account, type = 'acBalance' }) =
   const [subscriptions, setSubscriptions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const title = type === 'acBalance' ? 'Ac History' : 'Number Logs';
+  const title = type === 'clientWallet' ? 'Client Wallet History' : type === 'acBalance' ? 'Ac History' : 'Number Logs';
 
   useEffect(() => {
     if (isOpen && account) {
@@ -24,7 +24,14 @@ const AccountHistoryModal = ({ isOpen, onClose, account, type = 'acBalance' }) =
       setTab('transactions');
       setTransactions([]);
       setSubscriptions([]);
-      api('GET', `/api/accounts/${account.id}/history?type=${type}`)
+      
+      const endpoint = type === 'clientWallet' 
+        ? `/api/admin/users/${account.id || account._id}/wallet-history` 
+        : `/api/accounts/${account.id}/history?type=${type}`;
+        
+      console.log('Fetching history from:', endpoint);
+        
+      api('GET', endpoint)
         .then(res => {
           if (res && res.history) {
             setTransactions(res.history.transactions || []);
@@ -64,7 +71,9 @@ const AccountHistoryModal = ({ isOpen, onClose, account, type = 'acBalance' }) =
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button style={tabStyle('transactions')} onClick={() => setTab('transactions')}>TransactionLogs</button>
-            <button style={tabStyle('subscriptions')} onClick={() => setTab('subscriptions')}>SubscriptionLogs</button>
+            {type !== 'clientWallet' && (
+              <button style={tabStyle('subscriptions')} onClick={() => setTab('subscriptions')}>SubscriptionLogs</button>
+            )}
           </div>
         </div>
 
