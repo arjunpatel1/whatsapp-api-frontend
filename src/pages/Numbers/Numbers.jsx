@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
-import { Plus, RefreshCw, Trash2, Smartphone, X, MoreVertical, Send, Edit, Clock, List, Settings, MessageSquare, RotateCcw, XCircle } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Smartphone, X, MoreVertical, Send, Edit, Clock, List, Settings, MessageSquare, RotateCcw, XCircle, LayoutTemplate } from 'lucide-react';
 import FundsModal from '../../components/ui/FundsModal';
 import SendCampaignModal from '../../components/ui/SendCampaignModal';
 import EditAccountModal from '../../components/ui/EditAccountModal';
@@ -9,8 +10,12 @@ import AccountHistoryModal from '../../components/ui/AccountHistoryModal';
 
 const Numbers = () => {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [accounts, setAccounts] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [childModalState, setChildModalState] = useState({ isOpen: false, client: null });
   const [packages, setPackages] = useState([]);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,8 +68,13 @@ const Numbers = () => {
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const res = await api('GET', '/api/accounts');
-      if (Array.isArray(res)) setAccounts(res);
+      if (user?.role === 'admin') {
+        const res = await api('GET', '/api/admin/users');
+        if (Array.isArray(res)) setAdminUsers(res);
+      } else {
+        const res = await api('GET', '/api/accounts');
+        if (Array.isArray(res)) setAccounts(res);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -76,7 +86,16 @@ const Numbers = () => {
       const res = await api('GET', '/api/packages');
       if (Array.isArray(res)) setPackages(res.filter(p => p.status === 'Active'));
     } catch (e) {
-      console.error(e);
+      console.error('fetchPackages error:', e.message);
+    }
+  };
+
+  const fetchWallet = async () => {
+    try {
+      const res = await api('GET', '/api/user-wallet');
+      setWalletBalance(res.balance || 0);
+    } catch (e) {
+      console.error('fetchWallet error:', e.message);
     }
   };
 
@@ -90,14 +109,15 @@ const Numbers = () => {
 
   const openModal = () => {
     fetchPackages();
+    fetchWallet();
     setIsModalOpen(true);
   };
 
   const renewSubscription = async (id) => {
-    if (!window.confirm('Are you sure you want to renew this number for 1 month?\n\n₹500 will be deducted from this number\'s AC Balance.')) return;
+    if (!window.confirm('Are you sure you want to renew this number for 1 month?\n\n₹500 will be deducted from your Wallet Balance.')) return;
     try {
       await api('POST', `/api/accounts/${id}/renew`);
-      alert('Subscription renewed! ₹500 deducted from AC Balance.');
+      alert('Subscription renewed! ₹500 deducted from your Wallet Balance.');
       fetchAccounts();
     } catch (e) {
       alert(e.message || 'Failed to renew subscription');
@@ -105,10 +125,10 @@ const Numbers = () => {
   };
 
   const cancelSubscription = async (id) => {
-    if (!window.confirm('Are you sure you want to cancel this plan?\n\nThis will immediately deactivate your plan. A prorated refund for unused days will be added back to your AC Balance.')) return;
+    if (!window.confirm('Are you sure you want to cancel this plan?\n\nThis will immediately deactivate your plan. A prorated refund for unused days will be added back to your Wallet Balance.')) return;
     try {
       const res = await api('POST', `/api/accounts/${id}/cancel`);
-      alert(`Plan cancelled. ₹${res.refunded || 0} refunded to AC Balance.`);
+      alert(`Plan cancelled. ₹${res.refunded || 0} refunded to your Wallet Balance.`);
       fetchAccounts();
     } catch (e) {
       alert(e.message || 'Failed to cancel subscription');
@@ -128,7 +148,12 @@ const Numbers = () => {
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api('POST', '/api/accounts', formData);
+      const payload = {
+        ...formData,
+        name: formData.accountName,
+        package: formData.packageId
+      };
+      await api('POST', '/api/accounts', payload);
       setIsModalOpen(false);
       fetchAccounts();
     } catch (e) {
@@ -167,18 +192,104 @@ const Numbers = () => {
             <tr>
               <th style={{ padding: '12px 16px', fontWeight: '600' }}>SRNO</th>
               <th style={{ padding: '12px 16px', fontWeight: '600' }}>Number</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>AC Balance</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>WhatsappBalance</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Whatsapp</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Package</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Period</th>
-              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Autorecharge</th>
+              {user?.role === 'admin' && <th style={{ padding: '12px 16px', fontWeight: '600' }}>AC Balance</th>}
+              {user?.role !== 'admin' && (
+                <>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>WhatsappBalance</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Whatsapp</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Package</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Period</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Autorecharge</th>
+                </>
+              )}
+              {user?.role === 'admin' && <th style={{ padding: '12px 16px', fontWeight: '600', textAlign: 'center' }}>Child Numbers</th>}
               <th style={{ padding: '12px 16px', fontWeight: '600', textAlign: 'center' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="9" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>Loading numbers...</td></tr>
+              <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>Loading numbers...</td></tr>
+            ) : user?.role === 'admin' ? (
+              adminUsers.length === 0 ? (
+                <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No registered clients found.</td></tr>
+              ) : (
+                adminUsers.map((client, index) => (
+                  <React.Fragment key={client.id || client._id}>
+                    <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: '#fff' }}>
+                      <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px' }}>{index + 1}</td>
+                      <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: '600', color: 'var(--text)', fontSize: '13px' }}>{client.phone || '-'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-mid)' }}>{client.email} {client.companyName ? `(${client.companyName})` : ''}</div>
+                      </td>
+                      <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px', color: 'var(--text)' }}>₹ {Number(client.walletBalance || 0).toFixed(2)}</div>
+                        <div style={{ fontSize: '11px', display: 'flex', gap: '8px' }}>
+                          <button onClick={() => setFundsModalState({ isOpen: true, account: client, isDebit: false, balanceType: 'wallet' })} style={{color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Credit</button>
+                          <span style={{ color: 'var(--text-light)' }}>/</span>
+                          <button onClick={() => setFundsModalState({ isOpen: true, account: client, isDebit: true, balanceType: 'wallet' })} style={{color: '#e53935', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Debit</button>
+                        </div>
+                      </td>
+                      <td style={{ padding: '13px 14px', textAlign: 'center' }}>
+                        <button onClick={() => setChildModalState({ isOpen: true, client })} style={{ padding: '6px 12px', background: 'none', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-mid)', display: 'flex', alignItems: 'center', gap: '6px', margin: '0 auto' }}>
+                          View
+                        </button>
+                      </td>
+                      <td style={{ padding: '16px', position: 'relative', textAlign: 'center' }}>
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (activeDropdown && activeDropdown.id === `client-${client.id || client._id}`) {
+                              setActiveDropdown(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setActiveDropdown({ id: `client-${client.id || client._id}`, x: rect.right, y: rect.bottom + 4 });
+                            }
+                          }}
+                          style={{ padding: '6px', background: 'none', color: 'var(--text)', border: 'none', cursor: 'pointer' }}
+                        >
+                          <MoreVertical size={20} />
+                        </button>
+                        {activeDropdown && activeDropdown.id === `client-${client.id || client._id}` && (
+                          <div 
+                            onClick={e => e.stopPropagation()}
+                            style={{ 
+                              position: 'fixed', 
+                              right: `${window.innerWidth - activeDropdown.x}px`, 
+                              top: `${activeDropdown.y}px`, 
+                              backgroundColor: 'white', 
+                              border: '1px solid var(--border)', 
+                              borderRadius: '8px', 
+                              boxShadow: '0 4px 20px rgba(0,0,0,0.15)', 
+                              padding: '6px 0', 
+                              zIndex: 99999, 
+                              minWidth: '170px', 
+                              textAlign: 'left' 
+                            }}
+                          >
+                            <button onClick={() => { setActiveDropdown(null); navigate(`/admin/users`); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}>
+                              <Edit size={14} color="var(--orange)" /> Edit
+                            </button>
+                            <button onClick={() => { setActiveDropdown(null); setAcHistoryModalAccount({ ...client, isClientWallet: true }); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}>
+                              <List size={14} color="var(--text-light)" /> AC History
+                            </button>
+                            <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
+                            <button onClick={() => { 
+                              setActiveDropdown(null); 
+                              if(window.confirm('Suspend this client account?')) { 
+                                api('PUT', `/api/admin/users/${client.id || client._id}/status`, { status: 'rejected' })
+                                  .then(() => fetchAccounts())
+                                  .catch(() => alert('Failed to suspend client.'));
+                              } 
+                            }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--red)' }}>
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))
+              )
             ) : accounts.length === 0 ? (
               <tr><td colSpan="9" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No WhatsApp accounts added yet.</td></tr>
             ) : (
@@ -199,22 +310,12 @@ const Numbers = () => {
                     </div>
                   </td>
                   <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>{Number(acc.acBalance || 0).toFixed(2)}</div>
-                    <div style={{ fontSize: '11px', display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setFundsModalState({ isOpen: true, account: acc, isDebit: false, balanceType: 'acBalance'})} style={{color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Credit</button>
-                      <span style={{ color: 'var(--text-light)' }}>/</span>
-                      <button onClick={() => setFundsModalState({ isOpen: true, account: acc, isDebit: true, balanceType: 'acBalance'})} style={{color: '#e53935', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Debit</button>
-                    </div>
-                  </td>
-                  <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
                     <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>{Number(acc.whatsappBalance || acc.prepaidBalance || 0).toFixed(2)}</div>
                     <div style={{ fontSize: '11px', display: 'flex', gap: '8px' }}>
                       {subActive
                         ? <button onClick={() => setFundsModalState({ isOpen: true, account: acc, isDebit: false, balanceType: 'prepaidBalance'})} style={{color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Credit</button>
                         : <span title="Renew subscription first" style={{fontSize: '11px', color: '#bdbdbd', fontWeight: '600', cursor: 'not-allowed'}}>Credit</span>
                       }
-                      <span style={{ color: 'var(--text-light)' }}>/</span>
-                      <button onClick={() => setFundsModalState({ isOpen: true, account: acc, isDebit: true, balanceType: 'prepaidBalance'})} style={{color: '#e53935', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Debit</button>
                     </div>
                   </td>
                   <td style={{ padding: '13px 14px' }}>
@@ -266,10 +367,9 @@ const Numbers = () => {
                         }}
                       >
                         <button onClick={() => { setActiveDropdown(null); setEditModalAccount(acc); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Edit size={14} color="var(--orange)" /> Edit</button>
-                        <button onClick={() => { setActiveDropdown(null); setAcHistoryModalAccount(acc); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Clock size={14} color="var(--text-light)" /> Ac History</button>
+                        <button onClick={() => { setActiveDropdown(null); navigate('/dashboard/templates'); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><LayoutTemplate size={14} color="var(--primary)" /> Templates</button>
+                        <button onClick={() => { setActiveDropdown(null); navigate('/dashboard/settings'); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Settings size={14} color="#8e24aa" /> API Settings</button>
                         <button onClick={() => { setActiveDropdown(null); setWaHistoryModalAccount(acc); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><List size={14} color="var(--text-light)" /> Number Logs</button>
-                        <button onClick={() => { setActiveDropdown(null); navigate(`/api-settings?account=${acc.id}`); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Settings size={14} color="var(--text-light)" /> API Settings</button>
-                        <button onClick={() => { setActiveDropdown(null); navigate(`/templates?account=${acc.id}`); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><MessageSquare size={14} color="var(--text-light)" /> Templates</button>
                         <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
                         <button onClick={() => { setActiveDropdown(null); renewSubscription(acc.id); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#1565c0', fontWeight: '600' }}><RotateCcw size={14} color="#1565c0" /> Renew Sub</button>
                         <button onClick={() => { setActiveDropdown(null); cancelSubscription(acc.id); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#e65100', fontWeight: '600' }}><XCircle size={14} color="#e65100" /> Cancel Sub</button>
@@ -338,14 +438,25 @@ const Numbers = () => {
 
 
 
-                <div style={{ marginTop: '16px', background: '#fff3e0', border: '1px solid #ffe0b2', padding: '12px', borderRadius: '6px', fontSize: '12px', color: '#e65100' }}>
-                  <strong>Note:</strong> A ₹500 subscription fee will be deducted from your Wallet Balance to activate this number for 1 month.
-                </div>
+                {user?.role === 'admin' ? (
+                  <div style={{ marginTop: '16px', background: '#e8f5e9', border: '1px solid #c8e6c9', padding: '12px', borderRadius: '6px', fontSize: '12px', color: '#2e7d32' }}>
+                    <strong>Admin Mode:</strong> Adding numbers is free for admins.
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '16px', background: walletBalance >= 500 ? '#e8f5e9' : '#ffebee', border: `1px solid ${walletBalance >= 500 ? '#c8e6c9' : '#ffcdd2'}`, padding: '12px', borderRadius: '6px', fontSize: '12px', color: walletBalance >= 500 ? '#2e7d32' : '#c62828' }}>
+                    <strong>Wallet Balance: ₹{walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong>
+                    <div style={{ marginTop: '4px' }}>
+                      {walletBalance >= 500 
+                        ? 'A ₹500 subscription fee will be deducted from your Wallet Balance to activate this number for 1 month.' 
+                        : 'Insufficient Wallet Balance. A ₹500 subscription fee is required. Please add funds to your Wallet.'}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexShrink: 0 }}>
                 <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text)' }}>Cancel</button>
-                <button type="submit" style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#075e54', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <button type="submit" disabled={walletBalance < 500 && user?.role !== 'admin'} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: (walletBalance < 500 && user?.role !== 'admin') ? '#9e9e9e' : '#075e54', color: '#fff', fontWeight: '700', cursor: (walletBalance < 500 && user?.role !== 'admin') ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center' }}>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style={{ marginRight: '4px' }}><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
                   Save Number
                 </button>
@@ -363,6 +474,7 @@ const Numbers = () => {
         isDebit={fundsModalState.isDebit}
         balanceType={fundsModalState.balanceType}
         onSuccess={fetchAccounts}
+        isAdmin={user?.role === 'admin'}
       />
 
       <SendCampaignModal 
@@ -382,7 +494,7 @@ const Numbers = () => {
         isOpen={!!acHistoryModalAccount}
         onClose={() => setAcHistoryModalAccount(null)}
         account={acHistoryModalAccount}
-        type="acBalance"
+        type={acHistoryModalAccount?.isClientWallet ? 'clientWallet' : 'acBalance'}
       />
 
       <AccountHistoryModal 
@@ -391,6 +503,134 @@ const Numbers = () => {
         account={waHistoryModalAccount}
         type="prepaidBalance"
       />
+
+      {/* Child Numbers Modal for Admin */}
+      {childModalState.isOpen && childModalState.client && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '90%', maxWidth: '1000px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>Child Numbers - {childModalState.client.companyName || childModalState.client.email}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>Managing WhatsApp accounts for this client</div>
+              </div>
+              <button onClick={() => setChildModalState({ isOpen: false, client: null })} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-light)', padding: '4px' }} title="Close">✕</button>
+            </div>
+            
+            <div style={{ overflowY: 'auto', padding: '24px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                <thead style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid var(--border)', color: 'var(--text-mid)', textTransform: 'uppercase', fontSize: '12px', letterSpacing: '0.04em' }}>
+                  <tr>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>SRNO</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Number</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>WhatsappBalance</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Whatsapp</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Package</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Period</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600' }}>Autorecharge</th>
+                    <th style={{ padding: '12px 16px', fontWeight: '600', textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!childModalState.client.accounts || childModalState.client.accounts.length === 0 ? (
+                    <tr><td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No WhatsApp accounts added yet for this client.</td></tr>
+                  ) : (
+                    childModalState.client.accounts.map((acc, accIdx) => {
+                      const now = new Date();
+                      const subActive = acc.subscriptionExpiresAt && new Date(acc.subscriptionExpiresAt) > now;
+                      const daysLeft = subActive ? Math.ceil((new Date(acc.subscriptionExpiresAt) - now) / (1000 * 60 * 60 * 24)) : 0;
+                      return (
+                        <tr key={acc.id} style={{ borderBottom: '1px solid var(--border)' }} onMouseEnter={e => e.currentTarget.style.background='#f9fbfd'} onMouseLeave={e => e.currentTarget.style.background=''}>
+                          <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px' }}>{accIdx + 1}</td>
+                          <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: '600', color: 'var(--blue)', fontSize: '13px' }}>{acc.displayPhone || acc.phoneId}</div>
+                            <div style={{ marginTop: '3px' }}>
+                              {subActive
+                                ? <span style={{ display: 'inline-block', background: '#e8f5e9', color: '#2e7d32', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: '700' }}>{daysLeft}d left</span>
+                                : <span style={{ display: 'inline-block', background: '#fbe9e7', color: '#c62828', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: '700' }}>⚠️ No Sub</span>
+                              }
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>{Number(acc.whatsappBalance || acc.prepaidBalance || 0).toFixed(2)}</div>
+                            <div style={{ fontSize: '11px', display: 'flex', gap: '8px' }}>
+                              {subActive
+                                ? <button onClick={() => { setChildModalState({ isOpen: false, client: null }); setFundsModalState({ isOpen: true, account: acc, isDebit: false, balanceType: 'prepaidBalance'}); }} style={{color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Credit</button>
+                                : <span title="Renew subscription first" style={{fontSize: '11px', color: '#bdbdbd', fontWeight: '600', cursor: 'not-allowed'}}>Credit</span>
+                              }
+                              <span style={{ color: 'var(--text-light)' }}>/</span>
+                              <button onClick={() => { setChildModalState({ isOpen: false, client: null }); setFundsModalState({ isOpen: true, account: acc, isDebit: true, balanceType: 'prepaidBalance'}); }} style={{color: '#e53935', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: '600'}}>Debit</button>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 14px' }}>
+                            <button onClick={() => { setChildModalState({ isOpen: false, client: null }); setSendModalAccount(acc); }} style={{ padding: '6px 12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '12px' }}>
+                              <Send size={14} /> Send
+                            </button>
+                          </td>
+                          <td style={{ padding: '13px 14px', fontWeight: '600', fontSize: '13px' }}>{acc.package || acc.packageId || 'None'}</td>
+                          <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                            {acc.subscriptionExpiresAt ? (() => {
+                              const end = new Date(acc.subscriptionExpiresAt);
+                              const start = new Date(end);
+                              start.setDate(start.getDate() - 30);
+                              const formatDt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                              return `${formatDt(start)} - ${formatDt(end)}`;
+                            })() : '-'}
+                          </td>
+                          <td style={{ padding: '13px 14px', color: 'var(--text-mid)', fontSize: '13px' }}>{acc.autoRecharge ? 'Yes' : 'No'}</td>
+                          <td style={{ padding: '16px', position: 'relative', textAlign: 'center' }}>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (activeDropdown && activeDropdown.id === `modal-${acc.id}`) {
+                                  setActiveDropdown(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActiveDropdown({ id: `modal-${acc.id}`, x: rect.right, y: rect.bottom + 4 });
+                                }
+                              }}
+                              style={{ padding: '6px', background: 'none', color: 'var(--text)', border: 'none', cursor: 'pointer' }}
+                            >
+                              <MoreVertical size={20} />
+                            </button>
+                            {activeDropdown && activeDropdown.id === `modal-${acc.id}` && (
+                              <div 
+                                onClick={e => e.stopPropagation()}
+                                style={{ 
+                                  position: 'fixed', 
+                                  right: `${window.innerWidth - activeDropdown.x}px`, 
+                                  top: `${activeDropdown.y}px`, 
+                                  backgroundColor: 'white', 
+                                  border: '1px solid var(--border)', 
+                                  borderRadius: '8px', 
+                                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)', 
+                                  padding: '6px 0', 
+                                  zIndex: 99999, 
+                                  minWidth: '170px', 
+                                  textAlign: 'left' 
+                                }}
+                              >
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); setEditModalAccount(acc); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Edit size={14} color="var(--orange)" /> Edit</button>
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); navigate('/dashboard/templates'); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><LayoutTemplate size={14} color="var(--primary)" /> Templates</button>
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); navigate('/dashboard/settings'); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><Settings size={14} color="#8e24aa" /> API Settings</button>
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); setWaHistoryModalAccount(acc); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text)' }}><List size={14} color="var(--text-light)" /> Number Logs</button>
+                                <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); renewSubscription(acc.id); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#1565c0', fontWeight: '600' }}><RotateCcw size={14} color="#1565c0" /> Renew Sub</button>
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); cancelSubscription(acc.id); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#e65100', fontWeight: '600' }}><XCircle size={14} color="#e65100" /> Cancel Sub</button>
+                                <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
+                                <button onClick={() => { setActiveDropdown(null); setChildModalState({ isOpen: false, client: null }); deleteAccount(acc.id); }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--red)' }}><Trash2 size={14} /> Delete</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

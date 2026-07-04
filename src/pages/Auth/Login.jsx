@@ -16,8 +16,20 @@ const Login = () => {
     try {
       const res = await api('POST', '/api/auth/login', { email, password });
       if (res.token) {
-        login(res.token);
-        navigate('/dashboard');
+        const userData = { 
+          email: res.email, 
+          role: res.role, 
+          userId: res.userId,
+          companyName: res.companyName,
+          phone: res.phone,
+          address: res.address
+        };
+        login(res.token, userData);
+        if (res.role === 'admin') {
+          navigate('/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError(err.message || 'Login failed');

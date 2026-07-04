@@ -16,11 +16,21 @@ import WebhookConfig from './pages/Settings/WebhookConfig';
 import OptoutRules from './pages/Settings/OptoutRules';
 import Blacklist from './pages/Settings/Blacklist';
 import Support from './pages/Settings/Support';
+import Wallet from './pages/Wallet/Wallet';
+import Profile from './pages/Profile/Profile';
 
-const ProtectedRoute = ({ children }) => {
-  const { token, loading } = useContext(AuthContext);
+import AdminDashboard from './pages/Admin/AdminDashboard';
+import UserManagement from './pages/Admin/UserManagement';
+
+const ProtectedRoute = ({ children, requireAdmin }) => {
+  const { token, user, loading } = useContext(AuthContext);
   if (loading) return <div>Loading...</div>;
   if (!token) return <Navigate to="/login" replace />;
+  
+  if (requireAdmin && user && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
   return children;
 };
 
@@ -34,19 +44,25 @@ const App = () => {
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
+          {/* Client Routes (Also contains Admin sub-routes now) */}
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <AppLayout />
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
+            <Route path="wallet" element={<Wallet />} />
             <Route path="numbers" element={<Numbers />} />
             <Route path="templates" element={<Templates />} />
             <Route path="library" element={<TemplateLibrary />} />
             <Route path="logs" element={<Logs />} />
+
+            {/* Admin specific sub-routes */}
+            <Route path="users" element={<UserManagement />} />
             <Route path="packages" element={<Packages />} />
 
             {/* Settings */}
+            <Route path="profile" element={<Profile />} />
             <Route path="settings" element={<ApiSettings />} />
             <Route path="webhook" element={<WebhookConfig />} />
             <Route path="optout" element={<OptoutRules />} />

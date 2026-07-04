@@ -7,6 +7,7 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,12 +25,19 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      const res = await api('POST', '/api/auth/register', { email, password });
-      if (res.token) {
+      const res = await api('POST', '/api/auth/register', { email, password, phone });
+      if (res.message) {
+        setSuccess(res.message);
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+        setPhone('');
+      } else if (res.token) {
         setSuccess('Signup successful! You can now login.');
         setEmail('');
         setPassword('');
         setConfirmPassword('');
+        setPhone('');
       }
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -65,6 +73,17 @@ const Signup = () => {
               onChange={e => setEmail(e.target.value)} 
               style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
               placeholder="Enter email"
+              required 
+            />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text)' }}>Main Phone Number <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input 
+              type="text" 
+              value={phone} 
+              onChange={e => setPhone(e.target.value)} 
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
+              placeholder="Enter phone number"
               required 
             />
           </div>

@@ -254,6 +254,11 @@ const TemplateBuilderModal = ({ isOpen, onClose, onSave, initialData }) => {
                   <option value="UTILITY">Utility</option>
                   <option value="AUTHENTICATION">Authentication</option>
                 </select>
+                {formData.category === 'AUTHENTICATION' && (
+                  <div style={{ marginTop: '8px', padding: '8px 12px', background: '#fff3e0', border: '1px solid #ffe0b2', borderRadius: '6px', fontSize: '12px', color: '#e65100' }}>
+                    ⚠️ <strong>Note:</strong> Meta restricts Authentication templates. They cannot be submitted via API — save as <strong>Draft</strong> instead and create them manually in your <a href="https://business.facebook.com/wa/manage/message-templates/" target="_blank" rel="noreferrer" style={{color:'#e65100'}}>Meta Business Manager</a>.
+                  </div>
+                )}
               </div>
             </div>
 
