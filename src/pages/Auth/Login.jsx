@@ -36,17 +36,6 @@ const Login = () => {
           address: res.address || decoded.address
         };
         login(res.token, userData);
-
-        // Probe admin endpoint to detect actual role
-        try {
-          await api('GET', '/api/admin/users');
-          // If this succeeds, user is admin — update their stored role
-          userData = { ...userData, role: 'admin' };
-          login(res.token, userData);
-        } catch {
-          // Not admin, role stays as-is
-        }
-
         navigate('/dashboard');
       }
     } catch (err) {
