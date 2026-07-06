@@ -5,12 +5,20 @@ import { api } from '../../utils/api';
 const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess, isAdmin }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userWalletBalance, setUserWalletBalance] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
       setAmount('');
+      if (!isAdmin) {
+        api('GET', '/api/user-wallet')
+          .then(res => {
+            setUserWalletBalance(res.balance || 0);
+          })
+          .catch(err => console.error('Error fetching user wallet balance:', err));
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, isAdmin]);
 
   if (!isOpen || !account) return null;
 
@@ -25,7 +33,11 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
     const finalAmount = isDebit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
 
     try {
-      if (balanceType === 'acBalance') {
+      if (balanceType === 'wallet') {
+        // Admin direct credit/debit for User's Wallet Balance
+        await api('POST', `/api/admin/users/${account.id}/wallet`, { amount: finalAmount });
+        alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} Wallet Balance successfully!`);
+      } else if (balanceType === 'acBalance') {
         // Direct credit/debit for AC Balance (Legacy / Admin only)
         await api('POST', `/api/accounts/${account.id}/ac-balance`, { amount: finalAmount });
         alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} AC Balance successfully!`);
@@ -49,8 +61,13 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
     setLoading(false);
   };
 
-  const title = isDebit ? 'Withdraw from Number' : 'Add Funds to Number';
-  const currentBalance = balanceType === 'acBalance' ? account.acBalance : account.prepaidBalance;
+  const title = isDebit 
+    ? (balanceType === 'wallet' ? 'Debit User Wallet' : 'Withdraw from Number')
+    : (balanceType === 'wallet' ? 'Credit User Wallet' : 'Add Funds to Number');
+  const currentBalance = 
+    balanceType === 'acBalance' ? account.acBalance : 
+    balanceType === 'wallet' ? account.walletBalance : 
+    (account.prepaidBalance !== undefined ? account.prepaidBalance : account.whatsappBalance);
   
   const quickAmounts = [500, 1000, 5000];
 
@@ -66,8 +83,15 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
 
         {/* Body */}
         <div style={{ padding: '24px' }}>
-          <div style={{ fontSize: '14px', color: 'var(--text-mid)', marginBottom: '16px' }}>
-            Current Balance: <strong style={{ color: 'var(--text)', fontSize: '16px' }}>₹ {(currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+          <div style={{ fontSize: '14px', color: 'var(--text-mid)', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {!isAdmin && userWalletBalance !== null ? (
+              <>
+                <span style={{ fontSize: '13px', color: 'var(--text-mid)' }}>Wallet Balance: <strong style={{ color: 'var(--green-dark, #2e7d32)', fontSize: '14px' }}>₹ {Number(userWalletBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                <span>Current Balance: <strong style={{ color: 'var(--text)', fontSize: '15px' }}>₹ {Number(currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+              </>
+            ) : (
+              <span>Current Balance: <strong style={{ color: 'var(--text)', fontSize: '15px' }}>₹ {Number(currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+            )}
           </div>
           
           <div style={{ marginBottom: '16px' }}>
@@ -108,11 +132,7 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
             />
           </div>
 
-          {!isDebit && (
-            <div style={{ background: '#e8f5e9', color: '#2e7d32', padding: '12px', borderRadius: '8px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
-              <Lock size={16} /> Secure Payment Gateway Ready
-            </div>
-          )}
+
         </div>
         
         {/* Footer */}
