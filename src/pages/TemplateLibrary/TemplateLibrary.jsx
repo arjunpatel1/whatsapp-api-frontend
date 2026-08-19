@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Library, Search, Copy } from 'lucide-react';
+import { AppContext } from '../../context/AppContext';
 
 const LIBRARY = [
   { id: 'lib1', industry: 'ecommerce', name: 'Order Confirmation', category: 'UTILITY', desc: 'Send order confirmation with details', preview: 'Dear {{customer_name}}, your order #{{order_id}} is confirmed! 🎉\n\nItems: {{items}}\nTotal: ₹{{amount}}\nDelivery: {{delivery_date}}' },
@@ -27,6 +28,7 @@ const categories = [
 ];
 
 const TemplateLibrary = () => {
+  const { showToast } = useContext(AppContext);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -101,8 +103,20 @@ const TemplateLibrary = () => {
             <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
               <button 
                 onClick={() => {
-                  navigator.clipboard.writeText(l.preview);
-                  alert('Template copied to clipboard!');
+                  const fallback = () => {
+                    const ta = document.createElement('textarea');
+                    ta.value = l.preview;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast('Template copied to clipboard!', 'success');
+                  };
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(l.preview).then(() => showToast('Template copied to clipboard!', 'success')).catch(fallback);
+                  } else {
+                    fallback();
+                  }
                 }}
                 style={{ flex: 1, padding: '8px', backgroundColor: 'var(--white)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: 'var(--text-mid)' }}
               >

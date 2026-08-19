@@ -1,13 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Trash2, Star, Copy } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Settings, Trash2, Star, Copy, Webhook } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const ApiSettings = () => {
+  const { showToast, showConfirm } = useContext(AppContext);
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ accountName: '', displayPhone: '', phoneId: '', wabaId: '', token: '' });
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
+  const [clientWebhookUrl, setClientWebhookUrl] = useState(user?.webhook_url || '');
+  const [savingWebhook, setSavingWebhook] = useState(false);
+
+  useEffect(() => {
+    if (user?.webhook_url !== undefined) {
+      setClientWebhookUrl(user.webhook_url);
+    }
+  }, [user]);
+
+  const [testingWebhook, setTestingWebhook] = useState(false);
+
+  const handleSaveWebhook = async (e) => {
+    e.preventDefault();
+    setSavingWebhook(true);
+    try {
+      await api('PUT', '/api/auth/profile', { webhook_url: clientWebhookUrl });
+      showToast('Client Webhook Callback URL saved successfully!', 'success');
+    } catch (err) {
+      showToast(err.message || 'Failed to save webhook URL', 'error');
+    }
+    setSavingWebhook(false);
+  };
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    try {
+      const res = await api('POST', '/api/auth/test-webhook', {});
+      showToast(res.message || '✅ Test webhook sent successfully!', 'success');
+    } catch (err) {
+      showToast(err.message || '❌ Webhook test failed', 'error');
+    }
+    setTestingWebhook(false);
+  };
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -26,32 +64,54 @@ const ApiSettings = () => {
     setResult(null);
     try {
       await api('POST', '/api/accounts', form);
-      setResult({ type: 'success', msg: '✅ Account saved successfully!' });
+      showToast('Account configuration saved successfully!', 'success');
       setForm({ accountName: '', displayPhone: '', phoneId: '', wabaId: '', token: '' });
       fetchAccounts();
     } catch (err) {
       setResult({ type: 'error', msg: '❌ ' + (err.message || 'Failed to save account') });
+      showToast(err.message || 'Failed to save account', 'error');
     }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this account?')) return;
+    const ok = await showConfirm({
+      title: 'Delete Account',
+      message: 'Are you sure you want to delete this account?',
+      type: 'danger',
+      confirmText: 'Delete'
+    });
+    if (!ok) return;
     try {
       await api('DELETE', `/api/accounts/${id}`);
       fetchAccounts();
-    } catch (e) { alert('Failed to delete account'); }
+      showToast('Account deleted successfully', 'success');
+    } catch (e) { showToast('Failed to delete account', 'error'); }
   };
 
   const handleSetDefault = async (id) => {
     try {
       await api('PUT', `/api/accounts/${id}`, { isDefault: true });
       fetchAccounts();
-    } catch (e) { alert('Failed to set default'); }
+      showToast('Set as default account', 'success');
+    } catch (e) { showToast('Failed to set default account', 'error'); }
   };
 
   const copyToken = (token) => {
-    navigator.clipboard.writeText(token).then(() => alert('Token copied!'));
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = token;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Token copied to clipboard!', 'success');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(token).then(() => showToast('Token copied to clipboard!', 'success')).catch(fallback);
+    } else {
+      fallback();
+    }
   };
 
   const inputStyle = {
@@ -75,10 +135,12 @@ const ApiSettings = () => {
           <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>🔑 Meta WhatsApp Cloud API Credentials</div>
         </div>
 
-        {/* Info alert */}
-        <div style={{ margin: '16px 20px 0', background: 'var(--blue-light)', border: '1px solid #bbdefb', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', lineHeight: '1.6' }}>
-          📌 Get these from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer" style={{ color: 'var(--blue)' }}>Meta for Developers → Your App → WhatsApp → API Setup</a>
-        </div>
+        {/* Info alert (Admin only) */}
+        {isAdmin && (
+          <div style={{ margin: '16px 20px 0', background: 'var(--blue-light)', border: '1px solid #bbdefb', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', lineHeight: '1.6' }}>
+            📌 Get these from <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer" style={{ color: 'var(--blue)' }}>Meta for Developers → Your App → WhatsApp → API Setup</a>
+          </div>
+        )}
 
         {/* Accounts Table */}
         <div style={{ padding: '16px 20px 0' }}>
@@ -90,15 +152,14 @@ const ApiSettings = () => {
                   <th style={{ padding: '11px 12px', fontWeight: '700', fontSize: '11px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>Phone Number ID</th>
                   <th style={{ padding: '11px 12px', fontWeight: '700', fontSize: '11px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>Display Phone</th>
                   <th style={{ padding: '11px 12px', fontWeight: '700', fontSize: '11px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>WABA ID</th>
-                  <th style={{ padding: '11px 12px', fontWeight: '700', fontSize: '11px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>Default</th>
                   <th style={{ padding: '11px 12px', fontWeight: '700', fontSize: '11px', color: 'var(--text-mid)', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-light)' }}>Loading accounts...</td></tr>
+                  <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-light)' }}>Loading accounts...</td></tr>
                 ) : accounts.length === 0 ? (
-                  <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-light)' }}>No accounts added yet</td></tr>
+                  <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: 'var(--text-light)' }}>No accounts added yet</td></tr>
                 ) : (
                   accounts.map((acc, i) => (
                     <tr key={acc.id} style={{ borderBottom: i < accounts.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -108,15 +169,6 @@ const ApiSettings = () => {
                       <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-mid)' }}>{acc.phoneId}</td>
                       <td style={{ padding: '12px', color: 'var(--text-mid)' }}>{acc.displayPhone || '—'}</td>
                       <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-mid)' }}>{acc.wabaId || '—'}</td>
-                      <td style={{ padding: '12px' }}>
-                        {acc.isDefault ? (
-                          <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>Default</span>
-                        ) : (
-                          <button onClick={() => handleSetDefault(acc.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                            <Star size={12} /> Set Default
-                          </button>
-                        )}
-                      </td>
                       <td style={{ padding: '12px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                           <button onClick={() => copyToken(acc.token || '')} title="Copy Token" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>
@@ -175,18 +227,65 @@ const ApiSettings = () => {
         </div>
       </div>
 
-      {/* Card 2: API Endpoints */}
-      <div style={{ backgroundColor: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>🌐 API Endpoints Used</div>
+      {/* Card 2: Client Webhook Callback URL (Client only) */}
+      {!isAdmin && (
+        <div style={{ backgroundColor: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '20px', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Webhook size={18} style={{ color: 'var(--primary)' }} />
+            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>📡 Inbound Webhook Callback URL (For API Integration)</div>
+          </div>
+          <div style={{ padding: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-mid)', marginBottom: '16px', lineHeight: '1.6' }}>
+              If you connect your external software, CRM, or server to our WhatsApp API, enter your Webhook Callback URL below. 
+              Our platform will automatically forward all inbound customer replies and message status events (sent, delivered, read, failed) to your server via HTTP POST in real time.
+            </div>
+            <form onSubmit={handleSaveWebhook}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={labelStyle}>YOUR WEBHOOK CALLBACK URL</label>
+                <input
+                  type="url"
+                  placeholder="https://your-crm-domain.com/api/whatsapp-callback"
+                  value={clientWebhookUrl}
+                  onChange={e => setClientWebhookUrl(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="submit"
+                  disabled={savingWebhook}
+                  style={{ padding: '10px 20px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  💾 {savingWebhook ? 'Saving...' : 'Save Webhook Callback URL'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTestWebhook}
+                  disabled={testingWebhook}
+                  style={{ padding: '10px 20px', background: '#f4f6f9', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  🧪 {testingWebhook ? 'Testing...' : 'Test Webhook Callback'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <div style={{ padding: '16px 20px', fontSize: '13px', lineHeight: '2' }}>
-          <div>📤 <strong>Send Message:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>POST https://graph.facebook.com/v21.0/{'{phone_number_id}'}/messages</code></div>
-          <div>📋 <strong>List Templates:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>GET https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
-          <div>➕ <strong>Create Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>POST https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
-          <div>🗑️ <strong>Delete Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>DELETE https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
+      )}
+
+      {/* Card 3: API Endpoints (Admin only) */}
+      {isAdmin && (
+        <div style={{ backgroundColor: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>🌐 API Endpoints Used</div>
+          </div>
+          <div style={{ padding: '16px 20px', fontSize: '13px', lineHeight: '2' }}>
+            <div>📤 <strong>Send Message:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>POST https://graph.facebook.com/v21.0/{'{phone_number_id}'}/messages</code></div>
+            <div>📋 <strong>List Templates:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>GET https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
+            <div>➕ <strong>Create Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>POST https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
+            <div>🗑️ <strong>Delete Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>DELETE https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

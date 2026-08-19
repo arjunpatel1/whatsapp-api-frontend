@@ -1,10 +1,12 @@
 import React, { useContext, useState } from 'react';
 import { AuthContext } from '../../context/AuthContext';
+import { AppContext } from '../../context/AppContext';
 import { User, Mail, Shield, Building2, Phone, Edit2, Save, X, MapPin } from 'lucide-react';
 import { api } from '../../utils/api';
 
 const Profile = () => {
   const { user, login } = useContext(AuthContext);
+  const { showToast } = useContext(AppContext);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     companyName: user?.companyName || '',
@@ -19,9 +21,9 @@ const Profile = () => {
     setIsEditing(!isEditing);
     if (!isEditing) {
       setFormData({
-        companyName: user.companyName || '',
-        phone: user.phone || '',
-        address: user.address || ''
+        companyName: user?.companyName || '',
+        phone: user?.phone || '',
+        address: user?.address || ''
       });
     }
   };
@@ -35,10 +37,11 @@ const Profile = () => {
         const newToken = localStorage.getItem('token');
         login(newToken, { ...user, companyName: formData.companyName, phone: formData.phone, address: formData.address });
         setIsEditing(false);
+        showToast('Profile updated successfully!', 'success');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to update profile');
+      showToast('Failed to update profile', 'error');
     }
     setLoading(false);
   };

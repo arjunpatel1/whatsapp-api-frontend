@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AuthContext } from '../../context/AuthContext';
+import { AppContext } from '../../context/AppContext';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
+  const { user } = useContext(AuthContext);
+  const { showToast } = useContext(AppContext);
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -17,6 +21,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
     subscriptionPeriod: '',
     autoRecharge: false
   });
+  const [phoneError, setPhoneError] = useState('');
   const [periodMonth, setPeriodMonth] = useState('');
   const [periodYear, setPeriodYear] = useState('');
 
@@ -28,7 +33,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
     if (isOpen) {
       api('GET', '/api/packages').then(res => {
         if (Array.isArray(res)) setPackages(res.filter(p => p.status === 'Active'));
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [isOpen]);
 
@@ -44,6 +49,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         subscriptionPeriod: account.subscriptionPeriod || '',
         autoRecharge: !!account.autoRecharge
       });
+      setPhoneError('');
       // Parse existing subscriptionPeriod e.g. "Jun01-30" -> extract month/year
       if (account.subscriptionPeriod) {
         const parts = account.subscriptionPeriod.split('-');
@@ -87,23 +93,64 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    let finalValue = type === 'checkbox' ? checked : value;
+    
+    if (name === 'displayPhone' && typeof finalValue === 'string') {
+      let cleanVal = finalValue.replace(/[^\d\s\-+]/g, '');
+      if (cleanVal.includes('+')) {
+        cleanVal = (cleanVal.startsWith('+') ? '+' : '') + cleanVal.replace(/\+/g, '');
+      }
+      finalValue = cleanVal;
+    } else if ((name === 'phoneId' || name === 'wabaId') && typeof finalValue === 'string') {
+      finalValue = finalValue.replace(/\D/g, '');
+    }
+
+    setFormData(prev => ({ ...prev, [name]: finalValue }));
+
+    if (name === 'displayPhone') {
+      if (!finalValue) {
+        setPhoneError('');
+        return;
+      }
+      if (!finalValue.startsWith('+')) {
+        setPhoneError('Must start with + followed by country code (e.g., +91)');
+        return;
+      }
+      const digitsOnly = finalValue.replace(/\D/g, '');
+      if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+        setPhoneError('Must contain between 7 and 15 digits');
+        return;
+      }
+      setPhoneError('');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.token || !formData.phoneId || !formData.wabaId) {
-      alert('Name, Token, Phone ID and WABA ID are required');
+      showToast('Name, Token, Phone ID and WABA ID are required', 'warning');
+      return;
+    }
+
+    const cleanPhone = (formData.displayPhone || '').trim();
+    const phoneRegex = /^\+[0-9\s\-]+$/;
+    if (!cleanPhone.startsWith('+') || !phoneRegex.test(cleanPhone)) {
+      setPhoneError('Must start with + followed by country code (e.g., +91)');
+      return;
+    }
+    const digitsOnly = cleanPhone.replace(/\D/g, '');
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      setPhoneError('Must contain between 7 and 15 digits');
       return;
     }
     setLoading(true);
     try {
       await api('PUT', `/api/accounts/${account.id}`, formData);
-      alert('Account updated successfully!');
+      showToast('Account updated successfully!', 'success');
       onSuccess();
       onClose();
     } catch (err) {
-      alert(err.message || 'Failed to update account');
+      showToast(err.message || 'Failed to update account', 'error');
     }
     setLoading(false);
   };
@@ -119,15 +166,20 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         value={formData[name]}
         onChange={handleChange}
         placeholder={placeholder}
-        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+        style={{ width: '100%', padding: '10px 12px', border: (name === 'displayPhone' && phoneError) ? '1px solid #e53935' : '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
       />
+      {name === 'displayPhone' && phoneError && (
+        <p style={{ color: '#e53935', fontSize: '11px', marginTop: '4px', marginBottom: '0', fontWeight: '500' }}>
+          {phoneError}
+        </p>
+      )}
     </div>
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '520px', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
-        
+
         {/* Header */}
         <div style={{ background: '#f4f6f9', padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>✏️ Edit Number</h2>
@@ -146,10 +198,20 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
           <div style={{ marginBottom: '14px' }}>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-mid)', marginBottom: '6px' }}>Package</label>
             <select
+              disabled={user?.role !== 'admin'}
               name="package"
               value={formData.package}
               onChange={handleChange}
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', background: '#fff', boxSizing: 'border-box' }}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                fontSize: '14px',
+                background: user?.role !== 'admin' ? '#f4f6f9' : '#fff',
+                cursor: user?.role !== 'admin' ? 'not-allowed' : 'default',
+                boxSizing: 'border-box'
+              }}
             >
               <option value="">-- Select Package --</option>
               {packages.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -195,7 +257,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         {/* Footer */}
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', background: '#fff', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexShrink: 0 }}>
           <button type="button" onClick={onClose} style={{ padding: '10px 20px', background: '#f4f6f9', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', color: 'var(--text)' }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={loading} style={{ padding: '10px 20px', background: 'var(--primary)', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600', color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+          <button onClick={handleSubmit} disabled={loading || !!phoneError} style={{ padding: '10px 20px', background: (loading || !!phoneError) ? '#9e9e9e' : 'var(--primary)', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600', color: '#fff', cursor: (loading || !!phoneError) ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>

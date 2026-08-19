@@ -1,15 +1,21 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { api } from '../../utils/api';
-import { Send, XCircle, TrendingUp, Activity, RefreshCw } from 'lucide-react';
+import { Send, XCircle, TrendingUp, Activity, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const [stats, setStats] = useState({
-    sent: 0, failed: 0, failRate: 0, sentToday: 0
+    sent: 0, failed: 0, failRate: 0, sentToday: 0, failedToday: 0
   });
   const [weekly, setWeekly] = useState([]);
-  const [templatePerf, setTemplatePerf] = useState([]);
+  const [monthly, setMonthly] = useState([]);
+  const [yearly, setYearly] = useState([]);
+  const [viewType, setViewType] = useState('day'); // 'day' | 'month' | 'year'
+  const [hoveredBarIndex, setHoveredBarIndex] = useState(null);
+  const [allLogs, setAllLogs] = useState([]);
+  const [tplTimeRange, setTplTimeRange] = useState('today'); // 'today' | 'yesterday' | '7days' | 'all'
+  const [tplPage, setTplPage] = useState(1);
   const [recentActivity, setRecentActivity] = useState([]);
   const [adminStats, setAdminStats] = useState({ totalUsers: 0, pendingUsers: 0 });
   const [loading, setLoading] = useState(true);
@@ -31,33 +37,23 @@ const Dashboard = () => {
         const s = dashRes.stats;
         const total = s.total || 0;
         const failed = s.failed || 0;
+        const successSent = s.successTotal !== undefined ? s.successTotal : (total - failed);
         setStats({
-          sent: total,
+          sent: successSent,
           failed,
           failRate: total ? Math.round(failed / total * 100) : 0,
-          sentToday: s.today || 0
+          sentToday: s.today || 0,
+          failedToday: s.failedToday || 0
         });
       }
-      if (dashRes.weekly) {
-        setWeekly(dashRes.weekly);
-      }
+      if (dashRes.weekly) setWeekly(dashRes.weekly);
+      if (dashRes.monthly) setMonthly(dashRes.monthly);
+      if (dashRes.yearly) setYearly(dashRes.yearly);
 
-      // Load logs for Template Performance and Recent Activity
-      const logsRes = await api('GET', '/api/logs');
+      // Load logs for Template Performance and Recent Activity (up to 10,000 logs)
+      const logsRes = await api('GET', '/api/logs?limit=10000');
       if (Array.isArray(logsRes)) {
-        // Template performance — count by template name
-        const tplCounts = {};
-        logsRes.forEach(l => {
-          if (l.template) {
-            tplCounts[l.template] = (tplCounts[l.template] || 0) + 1;
-          }
-        });
-        const sorted = Object.entries(tplCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
-        setTemplatePerf(sorted);
-
-        // Recent activity — last 5 messages
+        setAllLogs(logsRes);
         setRecentActivity(logsRes.slice(0, 5));
       }
     } catch (e) {
@@ -70,25 +66,95 @@ const Dashboard = () => {
     loadStats();
   }, [user]);
 
-  // Build 7-day chart data from weekly API data
-  const buildChartDays = () => {
-    const days = [];
+  // Dynamically compute template performance based on selected time range (ALL templates, sorted)
+  const computeTemplatePerf = () => {
+    if (!Array.isArray(allLogs) || allLogs.length === 0) return [];
+    
     const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const weekEntry = weekly.find(w => w.day === dateStr);
-      days.push({
-        label: d.toLocaleDateString('en', { weekday: 'short' }),
-        count: weekEntry ? weekEntry.count : 0
-      });
-    }
-    return days;
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const tplCounts = {};
+    allLogs.forEach(l => {
+      if (l.template && l.created_at && l.status !== 'failed') {
+        const logDate = new Date(l.created_at);
+        let matches = false;
+        if (tplTimeRange === 'today') {
+          matches = logDate >= todayStart;
+        } else if (tplTimeRange === 'yesterday') {
+          matches = logDate >= yesterdayStart && logDate < todayStart;
+        } else if (tplTimeRange === '7days') {
+          matches = logDate >= sevenDaysAgo;
+        } else if (tplTimeRange === 'all') {
+          matches = true;
+        }
+        if (matches) {
+          tplCounts[l.template] = (tplCounts[l.template] || 0) + 1;
+        }
+      }
+    });
+
+    return Object.entries(tplCounts)
+      .sort((a, b) => b[1] - a[1]);
   };
 
-  const chartDays = buildChartDays();
-  const maxVal = Math.max(...chartDays.map(d => d.count), 1);
+  const templatePerf = computeTemplatePerf();
+
+  // Build chart data depending on viewType ('day', 'month', 'year')
+  const buildChartData = () => {
+    const now = new Date();
+    if (viewType === 'month') {
+      const months = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const monthStr = `${year}-${m}`;
+        const monthEntry = monthly.find(w => w.month === monthStr);
+        months.push({
+          label: d.toLocaleDateString('en', { month: 'short' }),
+          fullLabel: `${d.toLocaleDateString('en', { month: 'short' })} ${year}`,
+          count: monthEntry ? monthEntry.count : 0
+        });
+      }
+      return months;
+    } else if (viewType === 'year') {
+      const years = [];
+      const currentYear = now.getFullYear();
+      for (let i = 4; i >= 0; i--) {
+        const yearNum = currentYear - i;
+        const yearStr = String(yearNum);
+        const yearEntry = yearly.find(w => w.year === yearStr);
+        years.push({
+          label: yearStr,
+          fullLabel: yearStr,
+          count: yearEntry ? yearEntry.count : 0
+        });
+      }
+      return years;
+    } else {
+      // Default: 'day' (Last 7 Days)
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const weekEntry = weekly.find(w => w.day === dateStr);
+        days.push({
+          label: d.toLocaleDateString('en', { weekday: 'short' }),
+          fullLabel: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+          count: weekEntry ? weekEntry.count : 0
+        });
+      }
+      return days;
+    }
+  };
+
+  const chartData = buildChartData();
+  const maxVal = Math.max(...chartData.map(d => d.count), 1);
   const maxTplCount = templatePerf.length > 0 ? Math.max(...templatePerf.map(x => x[1]), 1) : 1;
 
   return (
@@ -144,7 +210,7 @@ const Dashboard = () => {
           <div>
             <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text)' }}>{stats.failed}</div>
             <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '2px' }}>Failed Messages</div>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--red)', marginTop: '4px' }}>{stats.failRate}% failure rate</div>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--red)', marginTop: '4px' }}>↑ {stats.failedToday} today</div>
           </div>
         </div>
       </div>
@@ -153,37 +219,98 @@ const Dashboard = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
         {/* Message Volume Chart */}
         <div style={{ backgroundColor: 'var(--white)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <TrendingUp size={16} color="var(--primary)" /> Message Volume (Last 7 Days)
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <TrendingUp size={16} color="var(--primary)" />
+              Message Volume {viewType === 'day' ? '(Day Wise)' : viewType === 'month' ? '(Monthly Wise)' : '(Yearly Wise)'}
+            </h3>
+            <div style={{ display: 'flex', backgroundColor: '#f1f5f9', borderRadius: '6px', padding: '3px', gap: '2px' }}>
+              <button
+                onClick={() => setViewType('day')}
+                style={{
+                  padding: '3px 9px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  backgroundColor: viewType === 'day' ? 'var(--white, #fff)' : 'transparent',
+                  color: viewType === 'day' ? 'var(--primary, #075e54)' : '#64748b',
+                  boxShadow: viewType === 'day' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Day
+              </button>
+              <button
+                onClick={() => setViewType('month')}
+                style={{
+                  padding: '3px 9px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  backgroundColor: viewType === 'month' ? 'var(--white, #fff)' : 'transparent',
+                  color: viewType === 'month' ? 'var(--primary, #075e54)' : '#64748b',
+                  boxShadow: viewType === 'month' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Month
+              </button>
+              <button
+                onClick={() => setViewType('year')}
+                style={{
+                  padding: '3px 9px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  backgroundColor: viewType === 'year' ? 'var(--white, #fff)' : 'transparent',
+                  color: viewType === 'year' ? 'var(--primary, #075e54)' : '#64748b',
+                  boxShadow: viewType === 'year' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Year
+              </button>
+            </div>
+          </div>
+
           {loading ? (
-            <div style={{ height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)', fontSize: '13px' }}>Loading...</div>
+            <div style={{ height: '110px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)', fontSize: '13px' }}>Loading...</div>
           ) : (
             <>
               {/* Bar chart */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '70px', marginTop: '8px' }}>
-                {chartDays.map((d, i) => (
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: viewType === 'month' ? '3px' : '6px', height: '90px', marginTop: '16px', marginBottom: '24px', position: 'relative' }}>
+                {chartData.map((d, i) => (
                   <div
                     key={i}
-                    title={`${d.count} messages`}
-                    style={{
-                      flex: 1,
-                      height: `${Math.round(d.count / maxVal * 100)}%`,
-                      minHeight: '4px',
-                      backgroundColor: 'var(--green-mid, #66bb6a)',
-                      borderRadius: '3px 3px 0 0',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={e => e.target.style.backgroundColor = 'var(--green, #25d366)'}
-                    onMouseLeave={e => e.target.style.backgroundColor = 'var(--green-mid, #66bb6a)'}
-                  />
+                    style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', position: 'relative' }}
+                    onMouseEnter={() => setHoveredBarIndex(i)}
+                    onMouseLeave={() => setHoveredBarIndex(null)}
+                  >
+                    <div
+                      title={`${d.count} messages`}
+                      style={{
+                        width: '100%',
+                        height: `${Math.round(d.count / maxVal * 100)}%`,
+                        minHeight: '4px',
+                        backgroundColor: hoveredBarIndex === i ? 'var(--green, #25d366)' : 'var(--green-mid, #66bb6a)',
+                        borderRadius: '3px 3px 0 0',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s',
+                      }}
+                    />
+                  </div>
                 ))}
               </div>
               {/* X axis labels */}
-              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                {chartDays.map((d, i) => (
-                  <span key={i} style={{ flex: 1, fontSize: '9px', color: 'var(--text-light)', textAlign: 'center' }}>
+              <div style={{ display: 'flex', gap: viewType === 'month' ? '3px' : '6px', marginTop: '6px' }}>
+                {chartData.map((d, i) => (
+                  <span key={i} style={{ flex: 1, fontSize: '9px', color: 'var(--text-light)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.fullLabel || d.label}>
                     {d.label}
                   </span>
                 ))}
@@ -194,29 +321,150 @@ const Dashboard = () => {
 
         {/* Template Performance */}
         <div style={{ backgroundColor: 'var(--white)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', marginBottom: '16px' }}>📋 Template Performance</h3>
+          <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', margin: 0 }}>📋 Template Performance</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-light)', margin: '2px 0 0 0' }}>
+                {tplTimeRange === 'today' && "Today's metrics (Resets at midnight)"}
+                {tplTimeRange === 'yesterday' && "Previous day's template metrics"}
+                {tplTimeRange === '7days' && 'Last 7 days template metrics'}
+                {tplTimeRange === 'all' && 'All time template metrics'}
+              </p>
+            </div>
+            <select
+              value={tplTimeRange}
+              onChange={(e) => {
+                setTplTimeRange(e.target.value);
+                setTplPage(1);
+              }}
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                backgroundColor: '#f8fafc',
+                color: 'var(--primary, #075e54)',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="7days">Last 7 Days</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
           {loading ? (
-            <div style={{ color: 'var(--text-light)', fontSize: '13px' }}>Loading template metrics...</div>
+            <div style={{ color: 'var(--text-light)', fontSize: '13px', padding: '10px 0' }}>Loading template metrics...</div>
           ) : templatePerf.length === 0 ? (
-            <div style={{ color: 'var(--text-light)', fontSize: '12px', padding: '10px 0' }}>No template data yet</div>
+            <div style={{ color: 'var(--text-light)', fontSize: '12px', padding: '15px 0', textAlign: 'center' }}>
+              No template messages found for {tplTimeRange === 'today' ? 'today' : tplTimeRange === 'yesterday' ? 'yesterday' : tplTimeRange === '7days' ? 'the last 7 days' : 'this period'}
+            </div>
           ) : (
-            templatePerf.map(([name, count]) => (
-              <div key={name} style={{ marginBottom: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '3px' }}>
-                  <span style={{ fontWeight: '600' }}>{name}</span>
-                  <span style={{ color: 'var(--text-light)' }}>{count}</span>
-                </div>
-                <div style={{ background: '#e0e0e0', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${Math.round(count / maxTplCount * 100)}%`,
-                    height: '100%',
-                    background: 'var(--primary, #075e54)',
-                    borderRadius: '4px',
-                    transition: 'width 0.5s'
-                  }} />
-                </div>
-              </div>
-            ))
+            (() => {
+              const tplPerPage = 5;
+              const totalTplMsgs = templatePerf.reduce((sum, [, count]) => sum + count, 0);
+              const maxTplVal = Math.max(...templatePerf.map(x => x[1]), 1);
+              const totalPages = Math.ceil(templatePerf.length / tplPerPage) || 1;
+              const effectivePage = Math.min(tplPage, totalPages);
+              const startIndex = (effectivePage - 1) * tplPerPage;
+              const currentEntries = templatePerf.slice(startIndex, startIndex + tplPerPage);
+
+              return (
+                <>
+                  {currentEntries.map(([name, count]) => {
+                    const pct = totalTplMsgs > 0 ? Math.round((count / totalTplMsgs) * 100) : 0;
+                    return (
+                      <div key={name} style={{ marginBottom: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: '600', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }} title={name}>
+                            {name}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: '700', color: 'var(--primary, #075e54)' }}>{count} msgs</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-light)', backgroundColor: '#f1f5f9', padding: '1px 6px', borderRadius: '10px', fontWeight: '600' }}>
+                              {pct}%
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ background: '#f1f5f9', borderRadius: '4px', height: '7px', overflow: 'hidden' }}>
+                          <div
+                            title={`${name}: ${count} messages sent (${pct}% of total)`}
+                            style={{
+                              width: `${Math.round(count / maxTplVal * 100)}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, var(--primary, #075e54) 0%, var(--green, #25d366) 100%)',
+                              borderRadius: '4px',
+                              transition: 'width 0.5s'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Pagination Footer */}
+                  {templatePerf.length > tplPerPage && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '16px',
+                      paddingTop: '10px',
+                      borderTop: '1px solid var(--border)'
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>
+                        Showing {startIndex + 1}–{Math.min(startIndex + tplPerPage, templatePerf.length)} of {templatePerf.length} templates ({totalTplMsgs} total msgs)
+                      </span>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => setTplPage(prev => Math.max(prev - 1, 1))}
+                          disabled={effectivePage === 1}
+                          style={{
+                            padding: '3px 6px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            backgroundColor: '#fff',
+                            color: effectivePage === 1 ? 'var(--text-light)' : 'var(--text)',
+                            cursor: effectivePage === 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Previous Page"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text)', padding: '0 2px' }}>
+                          {effectivePage} / {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setTplPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={effectivePage === totalPages}
+                          style={{
+                            padding: '3px 6px',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            backgroundColor: '#fff',
+                            color: effectivePage === totalPages ? 'var(--text-light)' : 'var(--text)',
+                            cursor: effectivePage === totalPages ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="Next Page"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()
           )}
         </div>
       </div>
