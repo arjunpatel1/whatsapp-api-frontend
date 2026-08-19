@@ -145,10 +145,8 @@ const Templates = () => {
       if (tAccountId) {
         if (String(tAccountId) !== String(accountFilter)) return false;
       } else {
-        const selectedAccount = accounts.find(a => String(a.id || a._id) === String(accountFilter));
-        if (selectedAccount && String(t.userId || '') !== String(selectedAccount.userId || '')) {
-          return false;
-        }
+        // If template doesn't have an accountId and user selected a specific number, hide it.
+        return false;
       }
     }
     return true;
