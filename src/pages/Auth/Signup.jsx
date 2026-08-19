@@ -8,9 +8,33 @@ const Signup = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handlePhoneChange = (val) => {
+    let cleanVal = val.replace(/[^\d\s\-+]/g, '');
+    if (cleanVal.includes('+')) {
+      cleanVal = (cleanVal.startsWith('+') ? '+' : '') + cleanVal.replace(/\+/g, '');
+    }
+    setPhone(cleanVal);
+
+    if (!cleanVal) {
+      setPhoneError('');
+      return;
+    }
+    if (!cleanVal.startsWith('+')) {
+      setPhoneError('Must start with + followed by country code (e.g., +91)');
+      return;
+    }
+    const digitsOnly = cleanVal.replace(/\D/g, '');
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      setPhoneError('Must contain between 7 and 15 digits');
+      return;
+    }
+    setPhoneError('');
+  };
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -23,9 +47,18 @@ const Signup = () => {
       return setError('Passwords do not match');
     }
 
+    const cleanPhone = (phone || '').trim();
+    if (!cleanPhone.startsWith('+')) {
+      return setError('Main Phone Number must start with + followed by country code (e.g. +91)');
+    }
+    const digitsOnly = cleanPhone.replace(/\D/g, '');
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      return setError('Main Phone Number must contain between 7 and 15 digits');
+    }
+
     setLoading(true);
     try {
-      const res = await api('POST', '/api/auth/register', { email, password, phone });
+      const res = await api('POST', '/api/auth/register', { email, password, phone: cleanPhone });
       if (res.message) {
         setSuccess(res.message);
         setEmail('');
@@ -81,11 +114,16 @@ const Signup = () => {
             <input 
               type="text" 
               value={phone} 
-              onChange={e => setPhone(e.target.value)} 
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
-              placeholder="Enter phone number"
+              onChange={e => handlePhoneChange(e.target.value)} 
+              style={{ width: '100%', padding: '10px 12px', border: phoneError ? '1px solid #e53935' : '1px solid var(--border)', borderRadius: '6px', outline: 'none' }}
+              placeholder="+91 98765 43210"
               required 
             />
+            {phoneError && (
+              <p style={{ color: '#e53935', fontSize: '11px', marginTop: '4px', marginBottom: '0', fontWeight: '500' }}>
+                {phoneError}
+              </p>
+            )}
           </div>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: 'var(--text)' }}>Password <span style={{ color: 'var(--red)' }}>*</span></label>
@@ -109,7 +147,7 @@ const Signup = () => {
               required 
             />
           </div>
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+          <button type="submit" disabled={loading || !!phoneError} style={{ width: '100%', padding: '12px', backgroundColor: (loading || !!phoneError) ? '#9e9e9e' : 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: (loading || !!phoneError) ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
             {loading ? 'Signing Up...' : 'Sign Up'}
           </button>
           

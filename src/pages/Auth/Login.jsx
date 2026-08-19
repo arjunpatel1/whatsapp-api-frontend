@@ -33,7 +33,8 @@ const Login = () => {
           userId: res.userId || decoded.userId || decoded.id || decoded._id,
           companyName: res.companyName || decoded.companyName,
           phone: res.phone || decoded.phone,
-          address: res.address || decoded.address
+          address: res.address || decoded.address,
+          auth_key: res.auth_key || decoded.auth_key
         };
         login(res.token, userData);
         navigate('/dashboard');

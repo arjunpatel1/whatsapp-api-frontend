@@ -1,15 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { X, Lock } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
 
 const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess, isAdmin }) => {
+  const { showToast } = useContext(AppContext);
   const [amount, setAmount] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [userWalletBalance, setUserWalletBalance] = useState(null);
+
+  const handleAmountChange = (val) => {
+    setAmount(val);
+    if (!val) {
+      setError('');
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) {
+      setError('Please enter a valid amount greater than 0.');
+      return;
+    }
+    const maxLimit = isAdmin ? 1000000 : 100000;
+    if (num > maxLimit) {
+      setError(`Maximum amount allowed is ₹${maxLimit.toLocaleString('en-IN')}.`);
+      return;
+    }
+    const decimalParts = val.split('.');
+    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
+      setError('Amount cannot have more than 2 decimal places.');
+      return;
+    }
+    setError('');
+  };
 
   useEffect(() => {
     if (isOpen) {
       setAmount('');
+      setError('');
       if (!isAdmin) {
         api('GET', '/api/user-wallet')
           .then(res => {
@@ -24,39 +52,52 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!amount || isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
+    const numAmount = parseFloat(amount);
+    if (!amount || isNaN(numAmount) || numAmount <= 0) {
+      setError('Please enter a valid amount greater than 0.');
+      return;
+    }
+
+    const maxLimit = isAdmin ? 1000000 : 100000;
+    if (numAmount > maxLimit) {
+      setError(`Maximum amount allowed is ₹${maxLimit.toLocaleString('en-IN')} per transaction.`);
+      return;
+    }
+
+    const decimalParts = amount.split('.');
+    if (decimalParts.length > 1 && decimalParts[1].length > 2) {
+      setError('Amount cannot have more than 2 decimal places.');
       return;
     }
 
     setLoading(true);
-    const finalAmount = isDebit ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount));
+    const finalAmount = isDebit ? -Math.abs(numAmount) : Math.abs(numAmount);
 
     try {
       if (balanceType === 'wallet') {
         // Admin direct credit/debit for User's Wallet Balance
         await api('POST', `/api/admin/users/${account.id}/wallet`, { amount: finalAmount });
-        alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} Wallet Balance successfully!`);
+        showToast(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} Wallet Balance successfully!`, 'success');
       } else if (balanceType === 'acBalance') {
         // Direct credit/debit for AC Balance (Legacy / Admin only)
         await api('POST', `/api/accounts/${account.id}/ac-balance`, { amount: finalAmount });
-        alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} AC Balance successfully!`);
+        showToast(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} AC Balance successfully!`, 'success');
       } else {
         if (isAdmin) {
           // Admin direct credit/debit for WhatsApp Balance
           await api('POST', `/api/accounts/${account.id}/prepaid-balance`, { amount: finalAmount });
-          alert(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} WhatsApp Balance successfully!`);
+          showToast(`₹ ${Math.abs(finalAmount)} ${isDebit ? 'debited from' : 'credited to'} WhatsApp Balance successfully!`, 'success');
         } else {
           // WhatsApp Balance (prepaidBalance): funded from User Wallet (Client only, Credits only)
           await api('POST', '/api/user-wallet/top-up-number', { accountId: account.id, amount: finalAmount });
-          alert(`₹ ${Math.abs(finalAmount)} moved from User Wallet to WhatsApp Balance successfully!`);
+          showToast(`₹ ${Math.abs(finalAmount)} moved from User Wallet to WhatsApp Balance successfully!`, 'success');
         }
       }
       onSuccess();
       onClose();
       setAmount('');
     } catch (err) {
-      alert(err.message || 'Transaction failed');
+      showToast(err.message || 'Transaction failed', 'error');
     }
     setLoading(false);
   };
@@ -72,7 +113,7 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
   const quickAmounts = [500, 1000, 5000];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '450px', maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         
         {/* Header */}
@@ -101,7 +142,10 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
                 <button 
                   key={amt}
                   type="button"
-                  onClick={() => setAmount(String(amt))}
+                  onClick={() => {
+                    setAmount(String(amt));
+                    setError('');
+                  }}
                   style={{ 
                     flex: 1, 
                     padding: '10px 0',
@@ -125,11 +169,18 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
             <input 
               type="number" 
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => handleAmountChange(e.target.value)}
               placeholder="e.g. 2000"
-              style={{ width: '100%', padding: '12px 14px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '16px', fontWeight: '600', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: '6px', border: error ? '1px solid #e53935' : '1px solid var(--border)', fontSize: '16px', fontWeight: '600', boxSizing: 'border-box', outline: 'none' }}
               min="1"
+              max={isAdmin ? "1000000" : "100000"}
+              step="0.01"
             />
+            {error && (
+              <p style={{ color: '#e53935', fontSize: '12px', marginTop: '6px', marginBottom: '0', fontWeight: '500' }}>
+                {error}
+              </p>
+            )}
           </div>
 
 
@@ -142,16 +193,16 @@ const FundsModal = ({ isOpen, onClose, account, isDebit, balanceType, onSuccess,
           </button>
           <button 
             onClick={handleSubmit} 
-            disabled={loading || !amount}
+            disabled={loading || !amount || !!error}
             style={{ 
               padding: '10px 20px', 
               borderRadius: '6px', 
               border: 'none', 
-              background: isDebit ? 'var(--red)' : '#3f51b5', 
+              background: (loading || !amount || !!error) ? '#9e9e9e' : (isDebit ? 'var(--red)' : '#3f51b5'), 
               color: 'white', 
               fontWeight: '600', 
-              cursor: (loading || !amount) ? 'not-allowed' : 'pointer',
-              opacity: (loading || !amount) ? 0.7 : 1
+              cursor: (loading || !amount || !!error) ? 'not-allowed' : 'pointer',
+              opacity: (loading || !amount || !!error) ? 0.7 : 1
             }}
           >
             {loading ? 'Processing...' : (isDebit ? 'Confirm Deduction' : 'Proceed to Pay')}

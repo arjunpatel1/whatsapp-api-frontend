@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ShieldAlert, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const OptoutRules = () => {
+  const { showToast } = useContext(AppContext);
+  const { user } = useContext(AuthContext);
+
+  if (user?.role !== 'admin') {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '22px', color: 'var(--red)', marginBottom: '12px' }}>🔒 Access Denied</h2>
+        <p style={{ color: 'var(--text-mid)', fontSize: '14px' }}>
+          Opt-out Rules configuration is restricted to Super Admin accounts.
+        </p>
+      </div>
+    );
+  }
   const [keywords, setKeywords] = useState([]);
   const [newKeyword, setNewKeyword] = useState('');
   const [loading, setLoading] = useState(true);
@@ -43,14 +58,16 @@ const OptoutRules = () => {
       await api('POST', '/api/optout/keywords', { keyword: kw });
       setKeywords([...keywords, kw]);
       setNewKeyword('');
-    } catch (e) { alert(e.message || 'Failed to add keyword'); }
+      showToast('Opt-out keyword added', 'success');
+    } catch (e) { showToast(e.message || 'Failed to add keyword', 'error'); }
   };
 
   const handleRemove = async (kw) => {
     try {
       await api('DELETE', `/api/optout/keywords/${kw}`);
       setKeywords(keywords.filter(k => k !== kw));
-    } catch (e) { alert(e.message || 'Failed to remove keyword'); }
+      showToast(`Removed keyword ${kw}`, 'info');
+    } catch (e) { showToast(e.message || 'Failed to remove keyword', 'error'); }
   };
 
   const handleSaveSettings = async (e) => {

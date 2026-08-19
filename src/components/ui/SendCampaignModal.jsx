@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../utils/api';
-import { X, Send } from 'lucide-react';
+import { AppContext } from '../../context/AppContext';
+import { X, Send, Image as ImageIcon, Video, FileText, Upload } from 'lucide-react';
 
 const SendCampaignModal = ({ isOpen, onClose, account }) => {
+  const { showToast } = useContext(AppContext);
   const [activeTab, setActiveTab] = useState('template');
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateObj, setSelectedTemplateObj] = useState(null);
   
+  // Media Header State
+  const [customHeaderMediaUrl, setCustomHeaderMediaUrl] = useState('');
+  const [headerMediaId, setHeaderMediaId] = useState('');
+  const [headerPreviewUrl, setHeaderPreviewUrl] = useState('');
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
   // Form State
   const [recipient, setRecipient] = useState('');
   const [templateName, setTemplateName] = useState('');
@@ -23,33 +31,222 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
 
   useEffect(() => {
     if (isOpen) {
+      setRecipient('');
+      setTemplateName('');
+      setSelectedTemplateObj(null);
+      setVariables({});
+      setVariableCount(0);
+      setTextMessage('');
+      setMediaType('image');
+      setMediaUrl('');
+      setMediaCaption('');
+      setCustomHeaderMediaUrl('');
+      setHeaderMediaId('');
+      setHeaderPreviewUrl('');
+      setUploadingMedia(false);
+      setLoading(false);
+
       api('GET', '/api/templates').then(res => {
         if (Array.isArray(res)) setTemplates(res.filter(t => t.status === 'APPROVED'));
       }).catch(console.error);
     }
   }, [isOpen]);
 
+  const selectTemplateObject = (tObj) => {
+    setSelectedTemplateObj(tObj || null);
+    if (!tObj) {
+      setCustomHeaderMediaUrl('');
+      setHeaderMediaId('');
+      setHeaderPreviewUrl('');
+      setVariableCount(0);
+      setVariables({});
+      return;
+    }
+
+    let hType = String(tObj.header_type || tObj.headerType || 'none').toUpperCase();
+    let hText = tObj.header_text || tObj.headerText || '';
+    if (tObj.components) {
+      let comps = tObj.components;
+      if (typeof comps === 'string') {
+        try { comps = JSON.parse(comps); } catch(e) {}
+      }
+      if (Array.isArray(comps)) {
+        const headerComp = comps.find(c => c.type === 'HEADER');
+        if (headerComp) {
+          if (headerComp.format) hType = String(headerComp.format).toUpperCase();
+          if (headerComp.text) hText = headerComp.text;
+          else if (headerComp.example) {
+            const handles = headerComp.example.header_handle || headerComp.example.header_url || [];
+            if (handles.length > 0) hText = handles[0];
+          }
+        }
+      }
+    }
+
+    let initialMediaUrl = '';
+    let initialMediaId = '';
+
+    if (hText) {
+      if (hText.startsWith('http://') || hText.startsWith('https://')) {
+        if (!hText.includes('scontent.whatsapp.net')) {
+          initialMediaUrl = hText;
+        }
+      } else if (!hText.includes(' ') && hText.length > 5) {
+        initialMediaId = hText;
+        initialMediaUrl = `✅ Pre-configured sample media`;
+      }
+    }
+
+    setCustomHeaderMediaUrl(initialMediaUrl);
+    setHeaderMediaId(initialMediaId);
+    setHeaderPreviewUrl('');
+
+    // Calculate variable count
+    setVariables({});
+    let count = 0;
+    let bText = '';
+    if (tObj.body) bText = tObj.body;
+    else if (tObj.components) {
+      let comps = tObj.components;
+      if (typeof comps === 'string') {
+        try { comps = JSON.parse(comps); } catch(e) {}
+      }
+      if (Array.isArray(comps)) {
+        const bodyComp = comps.find(c => c.type === 'BODY');
+        if (bodyComp) bText = bodyComp.text || '';
+      }
+    }
+    const matches = bText.match(/\{\{(\d+)\}\}/g);
+    if (matches) {
+      matches.forEach(m => {
+        const num = parseInt(m.replace(/[{}]/g, ''), 10);
+        if (!isNaN(num) && num > count) count = num;
+      });
+    }
+
+    // Check button URLs for variables
+    let btns = [];
+    if (tObj.buttons) {
+      let bRaw = tObj.buttons;
+      if (typeof bRaw === 'string') {
+        try { bRaw = JSON.parse(bRaw); } catch(e) {}
+      }
+      if (Array.isArray(bRaw)) btns = bRaw;
+    } else if (tObj.components) {
+      let cRaw = tObj.components;
+      if (typeof cRaw === 'string') {
+        try { cRaw = JSON.parse(cRaw); } catch(e) {}
+      }
+      if (Array.isArray(cRaw)) {
+        const btnComp = cRaw.find(c => c.type === 'BUTTONS');
+        if (btnComp && btnComp.buttons) btns = btnComp.buttons;
+      }
+    }
+
+    btns.forEach(b => {
+      if ((b.type === 'CALL_TO_ACTION' || b.type === 'URL' || b.type === 'url') && b.url) {
+        const btnMatches = b.url.match(/\{\{(\d+)\}\}/g);
+        if (btnMatches) {
+          btnMatches.forEach(m => {
+            const num = parseInt(m.replace(/[{}]/g, ''), 10);
+            if (!isNaN(num) && num > count) count = num;
+          });
+        }
+      }
+    });
+
+    setVariableCount(count);
+  };
+
+  const handleTemplateChange = (e) => {
+    const tName = e.target.value;
+    setTemplateName(tName);
+    const tObj = templates.find(t => t.name === tName);
+    selectTemplateObject(tObj || null);
+  };
+
   const handleSend = async () => {
-    if (!recipient) return alert('Please enter a recipient phone number.');
+    if (!recipient) return showToast('Please enter a recipient phone number.', 'warning');
+
+    const rawList = String(recipient).split(/[\s,;\n]+/);
+    const phoneList = [...new Set(rawList.map(n => String(n).replace(/\D/g, '')).filter(p => p.length >= 7))];
+
+    if (phoneList.length > 3) {
+      return showToast('Quick Send is limited to a maximum of 3 numbers at a time. For larger bulk broadcasts, please use the "Send Bulk" page!', 'warning');
+    }
+
+    if (activeTab === 'template') {
+      if (!templateName) return showToast('Please select a template.', 'warning');
+      if (variableCount > 0) {
+        for (let i = 1; i <= variableCount; i++) {
+          if (!variables[i] || !variables[i].trim()) {
+            showToast(`Please fill in all template variables. Variable {{${i}}} is required.`, 'warning');
+            return;
+          }
+        }
+      }
+    } else if (activeTab === 'text') {
+      if (!textMessage) return showToast('Please enter a message.', 'warning');
+    } else if (activeTab === 'media') {
+      if (!mediaUrl) return showToast('Please enter a media URL.', 'warning');
+    }
     
     setLoading(true);
     try {
       if (activeTab === 'template') {
-        if (!templateName) return alert('Please select a template.');
-        
         const comps = [];
-        const tObj = selectedTemplateObj;
-        const htype = tObj.header_type || tObj.headerType || 'none';
-        const htext = tObj.header_text || tObj.headerText || '';
-        if (htype && htype !== 'none') {
-          comps.push({ 
-            type: 'header', 
-            parameters: [
-              htype === 'TEXT' || htype === 'text' 
-                ? { type: 'text', text: htext || '' } 
-                : { type: htype.toLowerCase(), [htype.toLowerCase()]: { link: htext } }
-            ] 
-          });
+        const tObj = selectedTemplateObj || {};
+        let htype = String(tObj.header_type || tObj.headerType || 'none').toUpperCase();
+        let htext = tObj.header_text || tObj.headerText || '';
+        
+        if (tObj.components) {
+          let cList = tObj.components;
+          if (typeof cList === 'string') {
+            try { cList = JSON.parse(cList); } catch(e) {}
+          }
+          if (Array.isArray(cList)) {
+            const hComp = cList.find(c => c.type === 'HEADER');
+            if (hComp) {
+              if (hComp.format) htype = String(hComp.format).toUpperCase();
+              if (hComp.text) htext = hComp.text;
+              else if (hComp.example) {
+                const handles = hComp.example.header_handle || hComp.example.header_url || [];
+                if (handles.length > 0) htext = handles[0];
+              }
+            }
+          }
+        }
+
+        if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(htype)) {
+          const mediaKey = htype.toLowerCase();
+          if (headerMediaId) {
+            comps.push({
+              type: 'header',
+              parameters: [{ type: mediaKey, [mediaKey]: { id: headerMediaId } }]
+            });
+          } else {
+            const mediaLink = (customHeaderMediaUrl && !customHeaderMediaUrl.includes('scontent.whatsapp.net') && !customHeaderMediaUrl.startsWith('✅'))
+              ? customHeaderMediaUrl
+              : (htext && (htext.startsWith('http://') || htext.startsWith('https://')) && !htext.includes('scontent.whatsapp.net') ? htext : null);
+
+            if (!mediaLink) {
+              setLoading(false);
+              return showToast(`This template has a ${htype} header. Please upload your ${htype.toLowerCase()} file using the "Upload File" button, or paste a public ${htype.toLowerCase()} URL.`, 'warning');
+            }
+            comps.push({
+              type: 'header',
+              parameters: [{ type: mediaKey, [mediaKey]: { link: mediaLink } }]
+            });
+          }
+        } else if (htype === 'TEXT' && htext) {
+          const headerMatches = htext.match(/\{\{(\d+)\}\}/g);
+          if (headerMatches) {
+            const headerParams = headerMatches.map(m => {
+              const num = parseInt(m.replace(/[{}]/g, ''), 10);
+              return { type: 'text', text: variables[num] || `[VAR${num}]` };
+            });
+            comps.push({ type: 'header', parameters: headerParams });
+          }
         }
         
         if (variableCount > 0) {
@@ -60,7 +257,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
           comps.push({ type: 'body', parameters: bodyParams });
         }
 
-        // Add URL button parameters if any exist
+        // Add Button parameters if any exist
         let btns = [];
         if (tObj.buttons) {
           let bRaw = tObj.buttons;
@@ -79,8 +276,25 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
           }
         }
 
+        const isAuthCategory = (tObj.category || '').toUpperCase() === 'AUTHENTICATION';
+
         btns.forEach((b, btnIdx) => {
-          if ((b.type === 'CALL_TO_ACTION' || b.type === 'URL' || b.type === 'url') && b.url) {
+          const bType = (b.type || '').toUpperCase();
+          const otpType = (b.otp_type || '').toUpperCase();
+
+          if (isAuthCategory || bType === 'OTP' || bType === 'COPY_CODE' || otpType === 'COPY_CODE' || bType === 'OTP_BUTTON') {
+            const codeVal = variables[1] || '';
+            if (codeVal) {
+              comps.push({
+                type: 'button',
+                sub_type: 'url',
+                index: String(btnIdx),
+                parameters: [
+                  { type: 'text', text: codeVal }
+                ]
+              });
+            }
+          } else if ((bType === 'CALL_TO_ACTION' || bType === 'URL') && b.url) {
             const btnMatches = b.url.match(/\{\{\d+\}\}/g);
             if (btnMatches) {
               const uniqueBtnMatches = [...new Set(btnMatches)].sort();
@@ -98,24 +312,36 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
           }
         });
 
+        if (isAuthCategory && !comps.some(c => c.type === 'button') && variables[1]) {
+          comps.push({
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              { type: 'text', text: variables[1] }
+            ]
+          });
+        }
+
         await api('POST', '/api/send/template', {
           accountId: account.id,
           to: recipient,
           templateName,
-          languageCode: tObj.language || 'en',
-          components: comps
+          languageCode: tObj.language || 'en_US',
+          components: comps,
+          isBulk: false
         });
-        alert('Template message sent successfully!');
+        showToast('Template message sent successfully!', 'success');
       } else if (activeTab === 'text') {
-        if (!textMessage) return alert('Please enter a message.');
+        if (!textMessage) return showToast('Please enter a message.', 'warning');
         await api('POST', '/api/send/text', {
           accountId: account.id,
           to: recipient,
           text: textMessage
         });
-        alert('Text message sent successfully!');
+        showToast('Text message sent successfully!', 'success');
       } else if (activeTab === 'media') {
-        if (!mediaUrl) return alert('Please enter a media URL.');
+        if (!mediaUrl) return showToast('Please enter a media URL.', 'warning');
         await api('POST', '/api/send/media', {
           accountId: account.id,
           to: recipient,
@@ -123,53 +349,18 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
           mediaUrl,
           caption: mediaCaption
         });
-        alert('Media message sent successfully!');
+        showToast('Media message sent successfully!', 'success');
       }
       onClose();
     } catch (err) {
-      alert(err.message || 'Failed to send message');
+      showToast(err.message || 'Failed to send message', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTemplateChange = (e) => {
-    const tName = e.target.value;
-    setTemplateName(tName);
-    const tObj = templates.find(t => t.name === tName);
-    setSelectedTemplateObj(tObj || null);
-    
-    // Calculate variable count
-    setVariables({});
-    let count = 0;
-    if (tObj) {
-      let bText = '';
-      if (tObj.body) bText = tObj.body;
-      else if (tObj.components) {
-        let comps = tObj.components;
-        if (typeof comps === 'string') {
-          try { comps = JSON.parse(comps); } catch(e) {}
-        }
-        if (Array.isArray(comps)) {
-          const bodyComp = comps.find(c => c.type === 'BODY');
-          if (bodyComp) bText = bodyComp.text || '';
-        }
-      }
-      const matches = bText.match(/\{\{(\d+)\}\}/g);
-      if (matches) {
-        matches.forEach(m => {
-          const num = parseInt(m.replace(/[{}]/g, ''), 10);
-          if (!isNaN(num) && num > count) count = num;
-        });
-      }
-    }
-    setVariableCount(count);
-  };
-
   const getPreviewText = () => {
     if (activeTab === 'template' && selectedTemplateObj) {
-      // The template object from the DB has a flat 'body' property, 
-      // or if it came directly from Meta it might have 'components'
       let text = '';
       if (selectedTemplateObj.body) {
         text = selectedTemplateObj.body;
@@ -287,7 +478,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>TO (PHONE NUMBER) *</label>
                 <div style={{ display: 'flex' }}>
-                  <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="919876543210" style={{ flex: '1', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px 0 0 6px', background: '#f8f9fa' }} />
+                  <input type="tel" value={recipient} onChange={e => setRecipient(e.target.value)} placeholder="919876543210" style={{ flex: '1', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px 0 0 6px', background: '#f8f9fa', outline: 'none' }} />
                   <button style={{ padding: '0 16px', border: '1px solid var(--border)', borderLeft: 'none', borderRadius: '0 6px 6px 0', background: '#f4f6f9', color: 'var(--text-mid)', cursor: 'pointer' }}>✓ Validate</button>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>Include country code without + (e.g. 91XXXXXXXXXX for India)</div>
@@ -298,12 +489,106 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                 <div>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>SELECT TEMPLATE *</label>
-                    <select value={templateName} onChange={handleTemplateChange} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff' }}>
+                    <select value={templateName} onChange={handleTemplateChange} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', outline: 'none' }}>
                       <option value="">-- Choose a template --</option>
-                      {templates.map(t => <option key={t.id} value={t.name}>{t.name} ({t.category})</option>)}
+                      {(() => {
+                        const filteredTemplates = templates.filter(t => {
+                          if (!account) return true;
+                          const tAccId = typeof t.accountId === 'object' ? (t.accountId?.id || t.accountId?._id) : t.accountId;
+                          if (tAccId) {
+                            const accId = account.id || account._id;
+                            return String(tAccId) === String(accId);
+                          }
+                          return String(t.userId || '') === String(account.userId || '');
+                        });
+                        return filteredTemplates.map(t => <option key={t.id} value={t.name}>{t.name} ({t.category})</option>);
+                      })()}
                     </select>
                   </div>
                   
+                  {/* Media Header Input Field (if template has Image, Video, or Document header) */}
+                  {(() => {
+                    const tObj = selectedTemplateObj || {};
+                    let hType = String(tObj.header_type || tObj.headerType || 'none').toUpperCase();
+                    if (tObj.components) {
+                      let comps = tObj.components;
+                      if (typeof comps === 'string') {
+                        try { comps = JSON.parse(comps); } catch(e) {}
+                      }
+                      if (Array.isArray(comps)) {
+                        const headerComp = comps.find(c => c.type === 'HEADER');
+                        if (headerComp && headerComp.format) hType = String(headerComp.format).toUpperCase();
+                      }
+                    }
+                    if (!['IMAGE', 'VIDEO', 'DOCUMENT'].includes(hType)) return null;
+
+                    return (
+                      <div style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>
+                          🎬 HEADER {hType} MEDIA URL / FILE
+                        </label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <input
+                            type="text"
+                            value={customHeaderMediaUrl}
+                            onChange={e => { setCustomHeaderMediaUrl(e.target.value); setHeaderMediaId(''); }}
+                            placeholder={`Paste public ${hType.toLowerCase()} URL, or upload file →`}
+                            style={{ flex: 1, padding: '10px 14px', border: `1px solid ${headerMediaId ? '#22c55e' : 'var(--border)'}`, borderRadius: '6px', outline: 'none', background: headerMediaId ? '#f0fdf4' : '#fff' }}
+                          />
+                          <label style={{ padding: '10px 14px', backgroundColor: uploadingMedia ? '#e2e8f0' : '#0ea5e9', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: uploadingMedia ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                            <Upload size={14} /> {uploadingMedia ? 'Uploading...' : 'Upload File'}
+                            <input
+                              type="file"
+                              accept={hType === 'IMAGE' ? 'image/*' : hType === 'VIDEO' ? 'video/*' : '.pdf,.doc,.docx'}
+                              style={{ display: 'none' }}
+                              disabled={uploadingMedia}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                const accId = account?.id || account?._id;
+                                if (!accId) return showToast('Please select an account first.', 'warning');
+                                setUploadingMedia(true);
+                                try {
+                                  const formData = new FormData();
+                                  formData.append('file', file);
+                                  formData.append('accountId', accId);
+                                  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+                                  const res = await fetch('/api/send/upload-media', {
+                                    method: 'POST',
+                                    headers: { 'Authorization': token ? `Bearer ${token}` : '', 'authkey': localStorage.getItem('authkey') || '' },
+                                    body: formData,
+                                  });
+                                  let data = {};
+                                  try {
+                                    data = await res.json();
+                                  } catch (jsonErr) {
+                                    throw new Error(`Upload failed (${res.status} ${res.statusText}). File may be too large.`);
+                                  }
+                                  if (!res.ok) throw new Error(data.error || 'Failed to upload media file to Meta.');
+
+                                  const mId = data.mediaId || data.id || data.handle;
+                                  const mUrl = data.url || data.link || data.publicUrl;
+
+                                  if (mId || mUrl) {
+                                    if (mId) setHeaderMediaId(mId);
+                                    setHeaderPreviewUrl(URL.createObjectURL(file));
+                                    setCustomHeaderMediaUrl(mUrl || `${file.name} ✅ Uploaded to Meta`);
+                                    showToast(`${hType.toLowerCase()} uploaded to Meta successfully!`, 'success');
+                                  } else {
+                                    showToast(data.error || 'Upload failed: No media ID returned', 'error');
+                                  }
+                                } catch (err) {
+                                  showToast(err.message || 'Media upload failed.', 'error');
+                                } finally {
+                                  setUploadingMedia(false);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {selectedTemplateObj && variableCount > 0 && (
                     <div style={{ marginBottom: '24px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>TEMPLATE VARIABLES</label>
@@ -317,7 +602,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                               type="text" 
                               value={variables[vNum] || ''} 
                               onChange={e => setVariables(prev => ({ ...prev, [vNum]: e.target.value }))} 
-                              style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px' }} 
+                              style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }} 
                             />
                           </div>
                         );
@@ -336,7 +621,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                 <div>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>MESSAGE *</label>
-                    <textarea rows="5" value={textMessage} onChange={e => setTextMessage(e.target.value)} placeholder="Type your message..." style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', resize: 'vertical' }}></textarea>
+                    <textarea rows="5" value={textMessage} onChange={e => setTextMessage(e.target.value)} placeholder="Type your message..." style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', resize: 'vertical', outline: 'none' }}></textarea>
                     <div style={{ textAlign: 'right', fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>{textMessage.length}/1024</div>
                   </div>
                   <button onClick={handleSend} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#009688', color: '#fff', border: 'none', borderRadius: '24px', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: '16px' }}>
@@ -353,7 +638,7 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                 <div>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>MEDIA TYPE</label>
-                    <select value={mediaType} onChange={e => setMediaType(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff' }}>
+                    <select value={mediaType} onChange={e => setMediaType(e.target.value)} style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', outline: 'none' }}>
                       <option value="image">🖼️ Image</option>
                       <option value="document">📄 Document</option>
                       <option value="video">🎬 Video</option>
@@ -362,12 +647,12 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                   </div>
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>MEDIA URL *</label>
-                    <input type="url" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/image.jpg" style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                    <input type="url" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/image.jpg" style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }} />
                     <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>Must be a publicly accessible HTTPS URL</div>
                   </div>
                   <div style={{ marginBottom: '24px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-mid)', textTransform: 'uppercase' }}>CAPTION (OPTIONAL)</label>
-                    <input type="text" value={mediaCaption} onChange={e => setMediaCaption(e.target.value)} placeholder="Image caption..." style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px' }} />
+                    <input type="text" value={mediaCaption} onChange={e => setMediaCaption(e.target.value)} placeholder="Image caption..." style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '6px', outline: 'none' }} />
                   </div>
                   <button onClick={handleSend} disabled={loading} style={{ width: '100%', padding: '12px', backgroundColor: '#009688', color: '#fff', border: 'none', borderRadius: '24px', fontWeight: '600', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
                     <Send size={16} /> {loading ? 'Sending...' : 'Send Media Message'}
@@ -391,9 +676,81 @@ const SendCampaignModal = ({ isOpen, onClose, account }) => {
                   <div style={{ fontSize: '9px', opacity: 0.7 }}>online</div>
                 </div>
               </div>
-              <div className="phone-screen" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
-                <div className="wa-bubble" style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: 0, borderRadius: '8px', overflow: 'hidden' }}>
-                  <div className="wa-bubble-body" style={{ padding: '8px', color: !selectedTemplateObj && activeTab === 'template' ? '#aaa' : 'var(--text)', fontStyle: !selectedTemplateObj && activeTab === 'template' ? 'italic' : 'normal', whiteSpace: 'pre-wrap' }}>
+              <div className="phone-screen" style={{ padding: '16px', display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
+                <div className="wa-bubble" style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: 0, borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  
+                  {/* Live Preview Header Media */}
+                  {(() => {
+                    if (!selectedTemplateObj || activeTab !== 'template') return null;
+                    let hType = String(selectedTemplateObj.header_type || selectedTemplateObj.headerType || 'none').toUpperCase();
+                    let hText = selectedTemplateObj.header_text || selectedTemplateObj.headerText || '';
+                    if (selectedTemplateObj.components) {
+                      let comps = selectedTemplateObj.components;
+                      if (typeof comps === 'string') {
+                        try { comps = JSON.parse(comps); } catch(e) {}
+                      }
+                      if (Array.isArray(comps)) {
+                        const headerComp = comps.find(c => c.type === 'HEADER');
+                        if (headerComp) {
+                          if (headerComp.format) hType = String(headerComp.format).toUpperCase();
+                          if (headerComp.text) hText = headerComp.text;
+                          else if (headerComp.example) {
+                            const handles = headerComp.example.header_handle || headerComp.example.header_url || [];
+                            if (handles.length > 0) hText = handles[0];
+                          }
+                        }
+                      }
+                    }
+
+                    const previewMediaUrl = headerPreviewUrl || (customHeaderMediaUrl && !customHeaderMediaUrl.includes('✅ Uploaded') && (customHeaderMediaUrl.startsWith('http') || customHeaderMediaUrl.startsWith('blob:') || customHeaderMediaUrl.startsWith('data:')) ? customHeaderMediaUrl : (hText && hText.startsWith('http') ? hText : null));
+                    const mediaUrlVal = previewMediaUrl;
+
+                    return (
+                      <>
+                        {hType === 'IMAGE' && (
+                          mediaUrlVal && (mediaUrlVal.startsWith('http') || mediaUrlVal.startsWith('blob:') || mediaUrlVal.startsWith('data:')) ? (
+                            <img src={mediaUrlVal} alt="Header" style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '8px 8px 0 0', backgroundColor: '#f8fafc' }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '140px', backgroundColor: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', gap: '4px' }}>
+                              <ImageIcon size={32} />
+                              <span style={{ fontSize: '11px', fontWeight: '600' }}>Sample Image Header</span>
+                            </div>
+                          )
+                        )}
+
+                        {hType === 'VIDEO' && (
+                          mediaUrlVal ? (
+                            <video key={mediaUrlVal} src={mediaUrlVal} controls playsInline style={{ width: '100%', maxHeight: '180px', borderRadius: '8px 8px 0 0', backgroundColor: '#000' }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '140px', backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', gap: '4px' }}>
+                              <Video size={32} />
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#f8fafc' }}>Sample Video Header</span>
+                            </div>
+                          )
+                        )}
+
+                        {hType === 'DOCUMENT' && (
+                          <div style={{ width: '100%', padding: '10px 12px', backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FileText size={24} color="#e11d48" />
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {mediaUrlVal ? (mediaUrlVal.split('/').pop().split('?')[0] || 'Document.pdf') : 'Document.pdf'}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#64748b' }}>PDF Document</div>
+                            </div>
+                          </div>
+                        )}
+
+                        {(hType === 'TEXT' || (!['IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'].includes(hType) && hText && !hText.startsWith('http'))) && (
+                          <div style={{ fontWeight: '700', padding: '8px 8px 0', color: '#111b21' }}>
+                            {hText}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  <div className="wa-bubble-body" style={{ padding: '8px', color: !selectedTemplateObj && activeTab === 'template' ? '#aaa' : 'var(--text)', fontStyle: !selectedTemplateObj && activeTab === 'template' ? 'italic' : 'normal', whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                     {getPreviewText()}
                   </div>
                   <div className="wa-bubble-time" style={{ padding: '0 8px 8px' }}>12:34 <span className="wa-delivered" style={{color:'#53bdeb'}}>✓✓</span></div>

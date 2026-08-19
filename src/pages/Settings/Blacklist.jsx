@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Ban, Search, UserMinus } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const Blacklist = () => {
+  const { showToast, showConfirm } = useContext(AppContext);
+  const { user } = useContext(AuthContext);
+
+  if (user?.role !== 'admin') {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '22px', color: 'var(--red)', marginBottom: '12px' }}>🔒 Access Denied</h2>
+        <p style={{ color: 'var(--text-mid)', fontSize: '14px' }}>
+          Blacklist Management is restricted to Super Admin accounts.
+        </p>
+      </div>
+    );
+  }
   const [blacklist, setBlacklist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,21 +44,29 @@ const Blacklist = () => {
       await api('POST', '/api/blacklist', { phone: newPhone.trim() });
       setNewPhone('');
       fetchBlacklist();
-    } catch (e) { alert(e.message || 'Failed to block number'); }
+      showToast('Number added to blacklist', 'success');
+    } catch (e) { showToast(e.message || 'Failed to block number', 'error'); }
     setAdding(false);
   };
 
   const handleRemove = async (phone) => {
-    if (!window.confirm(`Unblock ${phone}?`)) return;
+    const ok = await showConfirm({
+      title: 'Unblock Number',
+      message: `Are you sure you want to unblock ${phone}?`,
+      type: 'danger',
+      confirmText: 'Unblock'
+    });
+    if (!ok) return;
     try {
       await api('DELETE', `/api/blacklist/${phone}`);
       fetchBlacklist();
-    } catch (e) { alert(e.message || 'Failed to unblock'); }
+      showToast(`Unblocked ${phone}`, 'success');
+    } catch (e) { showToast(e.message || 'Failed to unblock', 'error'); }
   };
 
   const handleBulkImport = async () => {
     const numbers = bulkText.split('\n').map(n => n.trim().replace(/\D/g, '')).filter(n => n.length > 5);
-    if (numbers.length === 0) { alert('No valid numbers found'); return; }
+    if (numbers.length === 0) { showToast('No valid numbers found', 'warning'); return; }
     setImporting(true);
     try {
       for (const phone of numbers) {
@@ -51,8 +74,8 @@ const Blacklist = () => {
       }
       setBulkText('');
       fetchBlacklist();
-      alert(`✅ Imported ${numbers.length} number(s)`);
-    } catch (e) { alert(e.message || 'Import failed'); }
+      showToast(`Imported ${numbers.length} number(s)`, 'success');
+    } catch (e) { showToast(e.message || 'Import failed', 'error'); }
     setImporting(false);
   };
 

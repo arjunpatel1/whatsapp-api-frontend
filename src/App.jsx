@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './context/AuthContext';
+import { AppProvider } from './context/AppContext';
 import AppLayout from './components/layout/AppLayout';
 import Login from './pages/Auth/Login';
 import Signup from './pages/Auth/Signup';
@@ -9,6 +10,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Numbers from './pages/Numbers/Numbers';
 import Packages from './pages/Packages/Packages';
 import Logs from './pages/Logs/Logs';
+import SendWhatsApp from './pages/Send/SendWhatsApp';
 import TemplateLibrary from './pages/TemplateLibrary/TemplateLibrary';
 import Templates from './pages/Templates/Templates';
 import ApiSettings from './pages/Settings/ApiSettings';
@@ -36,42 +38,53 @@ const ProtectedRoute = ({ children, requireAdmin }) => {
 
 const App = () => {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+    <AppProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Client Routes (Also contains Admin sub-routes now) */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="wallet" element={<Wallet />} />
-            <Route path="numbers" element={<Numbers />} />
-            <Route path="templates" element={<Templates />} />
-            <Route path="library" element={<TemplateLibrary />} />
-            <Route path="logs" element={<Logs />} />
+            {/* Client Routes (Also contains Admin sub-routes now) */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="send" element={<SendWhatsApp />} />
+              <Route path="wallet" element={<Wallet />} />
+              <Route path="numbers" element={<Numbers />} />
+              <Route path="templates" element={<Templates />} />
+              <Route path="library" element={<TemplateLibrary />} />
+              <Route path="logs" element={<Logs />} />
 
-            {/* Admin specific sub-routes */}
-            <Route path="users" element={<UserManagement />} />
-            <Route path="packages" element={<Packages />} />
+              {/* Admin specific sub-routes */}
+              <Route path="users" element={
+                <ProtectedRoute requireAdmin>
+                  <UserManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="packages" element={
+                <ProtectedRoute requireAdmin>
+                  <Packages />
+                </ProtectedRoute>
+              } />
 
-            {/* Settings */}
-            <Route path="profile" element={<Profile />} />
-            <Route path="settings" element={<ApiSettings />} />
-            <Route path="webhook" element={<WebhookConfig />} />
-            <Route path="optout" element={<OptoutRules />} />
-            <Route path="blacklist" element={<Blacklist />} />
-            <Route path="support" element={<Support />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+              {/* Settings */}
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<ApiSettings />} />
+              <Route path="webhook" element={<WebhookConfig />} />
+              <Route path="optout" element={<OptoutRules />} />
+              <Route path="blacklist" element={<Blacklist />} />
+              <Route path="support" element={<Support />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </AppProvider>
   );
 };
 

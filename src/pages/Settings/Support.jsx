@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { LifeBuoy, Play, ClipboardList } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const Support = () => {
+  const { showToast } = useContext(AppContext);
+  const { user } = useContext(AuthContext);
+
+  if (user?.role !== 'admin') {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '22px', color: 'var(--red)', marginBottom: '12px' }}>🔒 Access Denied</h2>
+        <p style={{ color: 'var(--text-mid)', fontSize: '14px' }}>
+          Support & Docs are restricted to Super Admin accounts.
+        </p>
+      </div>
+    );
+  }
   const [method, setMethod] = useState('GET');
   const [endpoint, setEndpoint] = useState('');
   const [bodyStr, setBodyStr] = useState('');
@@ -33,11 +48,11 @@ const Support = () => {
 
   const runApiTest = async () => {
     if (!endpoint) {
-      alert('Enter an endpoint URL');
+      showToast('Enter an endpoint URL', 'warning');
       return;
     }
     if (!token) {
-      alert('No Access Token found. Please configure an account in API Settings first.');
+      showToast('No Access Token found. Please configure an account in API Settings first.', 'warning');
       return;
     }
 

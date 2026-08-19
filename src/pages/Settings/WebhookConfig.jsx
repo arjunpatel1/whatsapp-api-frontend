@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { Webhook, Copy, Trash2, RefreshCw } from 'lucide-react';
 import { api } from '../../utils/api';
+import { AppContext } from '../../context/AppContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const PAYLOAD_EXAMPLE = `{
   "object": "whatsapp_business_account",
@@ -22,14 +24,19 @@ const PAYLOAD_EXAMPLE = `{
 }`;
 
 const copyText = (text) => {
-  navigator.clipboard.writeText(text).catch(() => {
+  const fallback = () => {
     const ta = document.createElement('textarea');
     ta.value = text;
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-  });
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(fallback);
+  } else {
+    fallback();
+  }
 };
 
 const genToken = () => {
@@ -38,6 +45,8 @@ const genToken = () => {
 };
 
 const WebhookConfig = () => {
+  const { showToast } = useContext(AppContext);
+  const { user } = useContext(AuthContext);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [verifyToken, setVerifyToken] = useState('');
   const [publicUrl, setPublicUrl] = useState('');
@@ -45,6 +54,17 @@ const WebhookConfig = () => {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
+
+  if (user?.role !== 'admin') {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '22px', color: 'var(--red)', marginBottom: '12px' }}>🔒 Access Denied</h2>
+        <p style={{ color: 'var(--text-mid)', fontSize: '14px' }}>
+          Global Webhook Configuration is restricted to Super Admin accounts.
+        </p>
+      </div>
+    );
+  }
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -88,9 +108,9 @@ const WebhookConfig = () => {
   const handleTest = async () => {
     try {
       const res = await api('POST', '/api/settings/test', {});
-      alert('✅ Webhook test passed! Connection is working.');
+      showToast('✅ Webhook test passed! Connection is working.', 'success');
     } catch (err) {
-      alert('❌ Test failed: ' + err.message);
+      showToast('❌ Test failed: ' + err.message, 'error');
     }
   };
 
@@ -147,22 +167,18 @@ const WebhookConfig = () => {
           <form onSubmit={handleSave}>
             {/* Webhook URL row */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Webhook URL (your server)</label>
+              <label style={labelStyle}>Webhook URL (YOUR SERVER)</label>
               <div style={igStyle}>
                 <input
-                  type="url"
-                  placeholder="https://yourdomain.com/webhook"
-                  value={webhookUrl}
-                  onChange={e => setWebhookUrl(e.target.value)}
-                  style={{ ...inputStyle, border: 'none', borderRadius: 0, background: 'transparent', flex: 1 }}
+                  type="text"
+                  readOnly
+                  value={webhookUrl || `${publicUrl || window.location.origin}/api/webhook`}
+                  style={{ ...inputStyle, border: 'none', borderRadius: 0, background: 'transparent', flex: 1, color: 'var(--text)' }}
                 />
-                <button type="button" onClick={() => { copyText(webhookUrl || callbackUrl); alert('Copied!'); }}
+                <button type="button" onClick={() => { copyText(webhookUrl || `${publicUrl || window.location.origin}/api/webhook`); showToast('Webhook URL copied to clipboard!', 'success'); }}
                   style={{ padding: '10px 14px', background: '#f4f6f9', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Copy size={14} /> Copy
                 </button>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '5px' }}>
-                Your callback URL: <code style={{ background: '#f4f6f9', padding: '2px 5px', borderRadius: '3px' }}>{callbackUrl}</code>
               </div>
             </div>
 
@@ -172,28 +188,23 @@ const WebhookConfig = () => {
               <div style={igStyle}>
                 <input
                   type="text"
-                  placeholder="your_verify_token_here"
-                  value={verifyToken}
-                  onChange={e => setVerifyToken(e.target.value)}
-                  style={{ ...inputStyle, border: 'none', borderRadius: 0, background: 'transparent', flex: 1 }}
+                  readOnly
+                  value={verifyToken || 'U1BTNchFxeKdnZUMPx0JvseZAbwg6Rdg'}
+                  style={{ ...inputStyle, border: 'none', borderRadius: 0, background: 'transparent', flex: 1, color: 'var(--text)' }}
                 />
-                <button type="button" onClick={() => setVerifyToken(genToken())}
-                  style={{ padding: '10px 14px', background: '#f4f6f9', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: 'var(--primary)' }}>
-                  🎲 Generate
+                <button type="button" onClick={() => { copyText(verifyToken || 'U1BTNchFxeKdnZUMPx0JvseZAbwg6Rdg'); showToast('Verify Token copied to clipboard!', 'success'); }}
+                  style={{ padding: '10px 14px', background: '#f4f6f9', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Copy size={14} /> Copy
                 </button>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '5px' }}>Set this same token in Meta App Dashboard</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '5px' }}>Paste this same token into Meta App Dashboard</div>
             </div>
 
             {/* Buttons */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button type="submit" disabled={saving}
-                style={{ padding: '10px 20px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
-                💾 {saving ? 'Saving...' : 'Save Webhook Config'}
-              </button>
               <button type="button" onClick={handleTest}
-                style={{ padding: '10px 20px', background: '#f4f6f9', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
-                🧪 Test Webhook
+                style={{ padding: '10px 20px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
+                🧪 Test Webhook Connection
               </button>
             </div>
 
