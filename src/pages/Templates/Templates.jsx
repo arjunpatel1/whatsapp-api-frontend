@@ -137,13 +137,15 @@ const Templates = () => {
   };
 
   const filtered = templates.filter(t => {
-    if (filter !== 'ALL' && t.category !== filter) return false;
+    if (filter !== 'ALL' && String(t.category || '').trim().toUpperCase() !== filter.toUpperCase()) return false;
     if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (accountFilter) {
-      if (t.accountId) {
-        if (String(t.accountId) !== String(accountFilter)) return false;
+      const tAccountId = t.accountId && typeof t.accountId === 'object' ? (t.accountId._id || t.accountId.id) : t.accountId;
+      
+      if (tAccountId) {
+        if (String(tAccountId) !== String(accountFilter)) return false;
       } else {
-        const selectedAccount = accounts.find(a => a.id === accountFilter);
+        const selectedAccount = accounts.find(a => String(a.id || a._id) === String(accountFilter));
         if (selectedAccount && String(t.userId || '') !== String(selectedAccount.userId || '')) {
           return false;
         }
@@ -291,7 +293,7 @@ const Templates = () => {
             <span style={{ position: 'absolute', top: '-6px', left: '10px', backgroundColor: '#fff', padding: '0 4px', fontSize: '9px', color: 'var(--text-light)', fontWeight: '600' }}>Select Number</span>
             <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)} style={{ padding: '8px 4px', border: 'none', outline: 'none', fontSize: '13px', color: 'var(--text)', background: 'transparent', width: '180px', cursor: 'pointer' }}>
               <option value="">All Numbers</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.displayPhone ? `${a.displayPhone}${a.name ? ` (${a.name})` : ''}` : (a.phoneId || a.name)}</option>)}
+              {accounts.map(a => <option key={a.id || a._id} value={a.id || a._id}>{a.displayPhone ? `${a.displayPhone}${a.name ? ` (${a.name})` : ''}` : (a.phoneId || a.name)}</option>)}
             </select>
           </div>
 
