@@ -240,7 +240,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
 
           {/* AutoRecharge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-mid)' }}>AutoRecharge</label>
+            <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-mid)' }}>Auto Renewal</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input
                 type="checkbox"
