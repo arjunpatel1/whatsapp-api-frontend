@@ -908,13 +908,13 @@ const Numbers = () => {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-mid)', marginBottom: '4px' }}>Auto Recharge</label>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-mid)', marginBottom: '4px' }}>Auto Renewal</label>
                       <select
                         value={autoRechargeFilter}
                         onChange={(e) => setAutoRechargeFilter(e.target.value)}
                         style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px', color: 'var(--text)', outline: 'none', backgroundColor: 'transparent' }}
                       >
-                        <option value="">All Auto Recharge</option>
+                        <option value="">All Auto Renewal</option>
                         <option value="yes">Yes</option>
                         <option value="no">No</option>
                       </select>
@@ -961,7 +961,7 @@ const Numbers = () => {
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Package</th>
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Upgrade</th>
                   <th style={{ padding: '12px 16px', fontWeight: '600' }}>Period</th>
-                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Autorecharge</th>
+                  <th style={{ padding: '12px 16px', fontWeight: '600' }}>Auto Renewal</th>
                 </>
               )}
               {user?.role === 'admin' && <th style={{ padding: '12px 16px', fontWeight: '600', textAlign: 'center' }}>Child Numbers</th>}

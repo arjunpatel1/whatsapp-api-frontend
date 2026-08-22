@@ -63,7 +63,18 @@ const Wallet = () => {
         }
       }, 3000);
     }
-    return () => clearInterval(interval);
+
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'PAYMENT_EXPIRED') {
+        closePaymentModal();
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('message', handleMessage);
+    };
   }, [activePayment, paymentSettled]);
 
   const fetchWallet = async () => {
@@ -121,6 +132,16 @@ const Wallet = () => {
     } finally {
       setAdding(false);
     }
+  };
+
+  const closePaymentModal = () => {
+    if (activePayment && activePayment.paymentId && !paymentSettled) {
+      // Send cancel request in the background
+      api('POST', '/api/user-wallet/cancel-payment', { paymentId: activePayment.paymentId })
+        .catch(() => {});
+    }
+    setActivePayment(null);
+    fetchWallet();
   };
 
   const totalItems = transactions.length;
@@ -487,7 +508,7 @@ const Wallet = () => {
                 </span>
               </div>
               <button
-                onClick={() => { setActivePayment(null); fetchWallet(); }}
+                onClick={closePaymentModal}
                 style={{
                   background: 'none',
                   border: 'none',

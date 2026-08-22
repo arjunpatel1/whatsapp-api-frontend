@@ -15,6 +15,9 @@ const ApiSettings = () => {
   const [result, setResult] = useState(null);
   const [clientWebhookUrl, setClientWebhookUrl] = useState(user?.webhook_url || '');
   const [savingWebhook, setSavingWebhook] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ upiApiKey: '', merchantAccountId: '' });
+  const [hasUpiKey, setHasUpiKey] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
     if (user?.webhook_url !== undefined) {
@@ -56,7 +59,23 @@ const ApiSettings = () => {
     setLoading(false);
   };
 
-  useEffect(() => { fetchAccounts(); }, []);
+  const fetchPaymentSettings = async () => {
+    try {
+      const res = await api('GET', '/api/payment-settings');
+      if (res.success && res.settings) {
+        setPaymentForm({
+          upiApiKey: '', // Don't prefill raw key
+          merchantAccountId: res.settings.merchantAccountId || ''
+        });
+        setHasUpiKey(res.settings.hasApiKey);
+      }
+    } catch (e) { console.error('Failed to load payment settings', e); }
+  };
+
+  useEffect(() => { 
+    fetchAccounts(); 
+    if (isAdmin) fetchPaymentSettings();
+  }, [isAdmin]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -72,6 +91,19 @@ const ApiSettings = () => {
       showToast(err.message || 'Failed to save account', 'error');
     }
     setSaving(false);
+  };
+
+  const handleSavePaymentSettings = async (e) => {
+    e.preventDefault();
+    setSavingPayment(true);
+    try {
+      await api('POST', '/api/payment-settings', paymentForm);
+      showToast('Payment settings saved successfully!', 'success');
+      fetchPaymentSettings();
+    } catch (err) {
+      showToast(err.message || 'Failed to save payment settings', 'error');
+    }
+    setSavingPayment(false);
   };
 
   const handleDelete = async (id) => {
@@ -283,6 +315,37 @@ const ApiSettings = () => {
             <div>📋 <strong>List Templates:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>GET https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
             <div>➕ <strong>Create Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>POST https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
             <div>🗑️ <strong>Delete Template:</strong> <code style={{ background: '#f4f6f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>DELETE https://graph.facebook.com/v21.0/{'{waba_id}'}/message_templates</code></div>
+          </div>
+        </div>
+      )}
+
+      {/* Card 4: UPI Payment Gateway (Admin only) */}
+      {isAdmin && (
+        <div style={{ backgroundColor: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', marginTop: '20px' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>💳 Direct UPI Payment Gateway Configuration</div>
+          </div>
+          <div style={{ padding: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-mid)', marginBottom: '16px', lineHeight: '1.6' }}>
+              Configure your global Direct UPI Payment gateway credentials here. All client wallet top-ups will be routed through these credentials.
+            </div>
+            <form onSubmit={handleSavePaymentSettings}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '14px' }}>
+                <div>
+                  <label style={labelStyle}>Merchant Account ID</label>
+                  <input type="text" placeholder="e.g. upi_merchant_123" value={paymentForm.merchantAccountId} onChange={e => setPaymentForm({ ...paymentForm, merchantAccountId: e.target.value })} style={inputStyle} required />
+                </div>
+                <div>
+                  <label style={labelStyle}>UPI API Key {hasUpiKey && <span style={{ color: 'var(--green)' }}>(Saved)</span>}</label>
+                  <input type="password" placeholder={hasUpiKey ? "Enter new key to replace existing" : "Enter UPI API Key"} value={paymentForm.upiApiKey} onChange={e => setPaymentForm({ ...paymentForm, upiApiKey: e.target.value })} style={inputStyle} required={!hasUpiKey} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button type="submit" disabled={savingPayment} style={{ padding: '10px 20px', background: '#1565c0', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
+                  💾 {savingPayment ? 'Saving...' : 'Save Payment Settings'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
