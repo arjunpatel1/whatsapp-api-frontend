@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/constants';
 import { AppContext } from '../../context/AppContext';
 import { 
   Send, 
@@ -127,7 +128,7 @@ const SendWhatsApp = () => {
         const isMarketing = String(t.category || '').toUpperCase() === 'MARKETING';
         if (!isMarketing) return false;
         const tAccId = typeof t.accountId === 'object' ? (t.accountId?.id || t.accountId?._id) : t.accountId;
-        if (!tAccId) return true; // Show unassigned / global templates
+        if (!tAccId) return false; // Hide unassigned templates
         return String(tAccId) === String(selectedAccountId);
       })
     : [];
@@ -861,7 +862,8 @@ const SendWhatsApp = () => {
                             formData.append('accountId', selectedAccountId);
                             const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
                             const authkey = localStorage.getItem('authkey') || '';
-                            const res = await fetch('/api/send/upload-media', {
+                            const baseUrl = API_BASE_URL.replace(/\/$/, '');
+                            const res = await fetch(`${baseUrl}/api/send/upload-media`, {
                               method: 'POST',
                               headers: {
                                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

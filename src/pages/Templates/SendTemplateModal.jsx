@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/constants';
 import { AppContext } from '../../context/AppContext';
 import { X, Send, Image as ImageIcon, Video, FileText, MapPin, Upload } from 'lucide-react';
 
@@ -550,7 +551,8 @@ const SendTemplateModal = ({ isOpen, onClose, template, accounts, defaultAccount
                               formData.append('file', file);
                               formData.append('accountId', accountId);
                               const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-                              const res = await fetch('/api/send/upload-media', {
+                              const baseUrl = API_BASE_URL.replace(/\/$/, '');
+                              const res = await fetch(`${baseUrl}/api/send/upload-media`, {
                                 method: 'POST',
                                 headers: { 'Authorization': token ? `Bearer ${token}` : '', 'authkey': localStorage.getItem('authkey') || '' },
                                 body: formData,
