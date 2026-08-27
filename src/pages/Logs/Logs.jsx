@@ -67,7 +67,7 @@ const Logs = () => {
         fetchLogs();
         showToast('Selected logs deleted successfully', 'success');
       } catch (e) {
-        showToast('Failed to delete selected logs', 'error');
+        showToast(e.message || 'Failed to delete selected logs', 'error');
       }
     } else {
       const ok = await showConfirm({
@@ -82,7 +82,7 @@ const Logs = () => {
         fetchLogs();
         showToast('All logs deleted successfully', 'success');
       } catch (e) {
-        showToast('Failed to delete logs', 'error');
+        showToast(e.message || 'Failed to delete logs', 'error');
       }
     }
   };

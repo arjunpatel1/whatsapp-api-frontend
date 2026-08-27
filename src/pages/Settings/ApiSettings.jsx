@@ -118,7 +118,7 @@ const ApiSettings = () => {
       await api('DELETE', `/api/accounts/${id}`);
       fetchAccounts();
       showToast('Account deleted successfully', 'success');
-    } catch (e) { showToast('Failed to delete account', 'error'); }
+    } catch (e) { showToast(e.message || 'Failed to delete account', 'error'); }
   };
 
   const handleSetDefault = async (id) => {
@@ -126,7 +126,7 @@ const ApiSettings = () => {
       await api('PUT', `/api/accounts/${id}`, { isDefault: true });
       fetchAccounts();
       showToast('Set as default account', 'success');
-    } catch (e) { showToast('Failed to set default account', 'error'); }
+    } catch (e) { showToast(e.message || 'Failed to set default account', 'error'); }
   };
 
   const copyToken = (token) => {

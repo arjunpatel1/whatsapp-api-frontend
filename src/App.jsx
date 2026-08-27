@@ -23,6 +23,7 @@ import Profile from './pages/Profile/Profile';
 
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
+import ApiLogs from './pages/Admin/ApiLogs';
 
 const ProtectedRoute = ({ children, requireAdmin }) => {
   const { token, user, loading } = useContext(AuthContext);
@@ -70,6 +71,11 @@ const App = () => {
               <Route path="packages" element={
                 <ProtectedRoute requireAdmin>
                   <Packages />
+                </ProtectedRoute>
+              } />
+              <Route path="api-logs" element={
+                <ProtectedRoute requireAdmin>
+                  <ApiLogs />
                 </ProtectedRoute>
               } />
 

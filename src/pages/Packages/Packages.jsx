@@ -79,7 +79,7 @@ const Packages = () => {
       fetchPackages();
       showToast('Package deleted successfully', 'success');
     } catch (e) {
-      showToast('Failed to delete package', 'error');
+      showToast(e.message || 'Failed to delete package', 'error');
     }
   };
 

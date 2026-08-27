@@ -290,7 +290,7 @@ const JsonModal = ({ isOpen, onClose, jsonData, title = "Template JSON" }) => {
     switch (selectedCodingLang) {
       case 'curl':
         return `# cURL Command — Send WhatsApp Template Message
-curl -X POST "${baseUrl}/api/messages/send-template" \\
+curl -X POST "${baseUrl}/api/send/template" \\
   -H "authkey: ${currentAuthKey}" \\
   -H "Content-Type: application/json" \\
   -d '${jsonStr}'`;
@@ -301,7 +301,7 @@ const axios = require('axios');
 
 const data = ${jsonStr};
 
-axios.post('${baseUrl}/api/messages/send-template', data, {
+axios.post('${baseUrl}/api/send/template', data, {
   headers: { 
     'authkey': '${currentAuthKey}', 
     'Content-Type': 'application/json'
@@ -314,7 +314,7 @@ axios.post('${baseUrl}/api/messages/send-template', data, {
         return `// Node.js / JavaScript Browser (Fetch API)
 const data = ${jsonStr};
 
-fetch('${baseUrl}/api/messages/send-template', {
+fetch('${baseUrl}/api/send/template', {
   method: 'POST',
   headers: {
     'authkey': '${currentAuthKey}',
@@ -330,7 +330,7 @@ fetch('${baseUrl}/api/messages/send-template', {
         return `# Python (Requests) — Send WhatsApp Template Message
 import requests
 
-url = "${baseUrl}/api/messages/send-template"
+url = "${baseUrl}/api/send/template"
 
 payload = ${jsonStr}
 
@@ -350,7 +350,7 @@ $curl = curl_init();
 $payload = ${jsonStr};
 
 curl_setopt_array($curl, array(
-  CURLOPT_URL => '${baseUrl}/api/messages/send-template',
+  CURLOPT_URL => '${baseUrl}/api/send/template',
   CURLOPT_RETURNTRANSFER => true,
   CURLOPT_ENCODING => '',
   CURLOPT_MAXREDIRS => 10,
@@ -382,7 +382,7 @@ $headers = [
   'Content-Type' => 'application/json'
 ];
 $body = '${jsonStr.replace(/'/g, "\\'")}';
-$request = new Request('POST', '${baseUrl}/api/messages/send-template', $headers, $body);
+$request = new Request('POST', '${baseUrl}/api/send/template', $headers, $body);
 $res = $client->sendAsync($request)->wait();
 echo $res->getBody();
 ?>`;
@@ -395,7 +395,7 @@ OkHttpClient client = new OkHttpClient().newBuilder().build();
 MediaType mediaType = MediaType.parse("application/json");
 RequestBody body = RequestBody.create(mediaType, ${JSON.stringify(jsonStr)});
 Request request = new Request.Builder()
-  .url("${baseUrl}/api/messages/send-template")
+  .url("${baseUrl}/api/send/template")
   .method("POST", body)
   .addHeader("authkey", "${currentAuthKey}")
   .addHeader("Content-Type", "application/json")
@@ -416,7 +416,7 @@ public class WhatsAppSender {
         String jsonPayload = ${JSON.stringify(jsonStr)};
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("${baseUrl}/api/messages/send-template"))
+            .uri(URI.create("${baseUrl}/api/send/template"))
             .header("authkey", "${currentAuthKey}")
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
@@ -439,7 +439,7 @@ class Program
     static async Task Main()
     {
         var client = new HttpClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, "${baseUrl}/api/messages/send-template");
+        var request = new HttpRequestMessage(HttpMethod.Post, "${baseUrl}/api/send/template");
         request.Headers.Add("authkey", "${currentAuthKey}");
         
         var json = @"${jsonStr.replace(/"/g, '""')}";
@@ -463,7 +463,7 @@ import (
 )
 
 func main() {
-	url := "${baseUrl}/api/messages/send-template"
+	url := "${baseUrl}/api/send/template"
 	var jsonStr = []byte(\`${jsonStr.replace(/`/g, '')}\`)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
@@ -489,7 +489,7 @@ func main() {
 require 'uri'
 require 'net/http'
 
-url = URI("${baseUrl}/api/messages/send-template")
+url = URI("${baseUrl}/api/send/template")
 
 http = Net::HTTP.new(url.host, url.port)
 http.use_ssl = true
