@@ -282,6 +282,20 @@ const AppLayout = () => {
                   <AppWindow size={20} />
                   <span>Packages</span>
                 </NavLink>
+                <NavLink
+                  to="/dashboard/api-logs"
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  style={({ isActive }) => ({
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px',
+                    color: isActive ? 'var(--orange)' : 'var(--text-mid)',
+                    backgroundColor: isActive ? 'var(--orange-light)' : 'transparent',
+                    borderRight: isActive ? '3px solid var(--orange)' : '3px solid transparent',
+                    textDecoration: 'none', fontWeight: '500'
+                  })}
+                >
+                  <ShieldAlert size={20} />
+                  <span>API Logs</span>
+                </NavLink>
               </>
             )}
 

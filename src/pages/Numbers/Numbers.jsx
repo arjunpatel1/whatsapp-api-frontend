@@ -590,7 +590,7 @@ const Numbers = () => {
       fetchAccounts();
       showToast('Account deleted successfully', 'success');
     } catch (e) {
-      showToast('Failed to delete account', 'error');
+      showToast(e.message || 'Failed to delete account', 'error');
     }
   };
 
@@ -1061,7 +1061,7 @@ const Numbers = () => {
                                     fetchAccounts();
                                     showToast('Client account suspended', 'info');
                                   })
-                                  .catch(() => showToast('Failed to suspend client.', 'error'));
+                                  .catch((e) => showToast(e.message || 'Failed to suspend client.', 'error'));
                               }
                             }} style={{ width: '100%', padding: '8px 16px', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--red)' }}>
                               <Trash2 size={14} /> Delete

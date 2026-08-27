@@ -41,7 +41,7 @@ const Profile = () => {
       }
     } catch (err) {
       console.error(err);
-      showToast('Failed to update profile', 'error');
+      showToast(err.message || 'Failed to update profile', 'error');
     }
     setLoading(false);
   };
