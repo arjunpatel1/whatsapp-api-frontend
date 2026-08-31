@@ -2,7 +2,7 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { AppContext } from '../../context/AppContext';
-import { MessageSquare, LayoutDashboard, Hash, FileText, Library, Settings, Webhook, ShieldAlert, Ban, LogOut, LifeBuoy, AppWindow, User, X, Key, Eye, EyeOff, Copy, RefreshCw, Hand, Send } from 'lucide-react';
+import { MessageSquare, LayoutDashboard, Bot, Hash, FileText, Library, Settings, Webhook, ShieldAlert, Ban, LogOut, LifeBuoy, AppWindow, User, X, Key, Eye, EyeOff, Copy, RefreshCw, Hand, Send } from 'lucide-react';
 import { api } from '../../utils/api';
 import OnboardingModal from '../Onboarding/OnboardingModal';
 
@@ -206,6 +206,7 @@ const AppLayout = () => {
     { to: '/dashboard/library', icon: <Library size={20} />, label: 'Template Library' },
     { to: '/dashboard/logs', icon: <MessageSquare size={20} />, label: 'Logs' },
     { to: '/dashboard/send', icon: <Send size={20} />, label: 'Send Bulk' },
+      { to: '/dashboard/auto-replies', icon: <Bot size={20} />, label: 'Auto Replies' },
   ];
 
   const settingItems = [
