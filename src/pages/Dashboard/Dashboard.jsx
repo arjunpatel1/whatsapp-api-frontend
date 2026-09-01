@@ -12,6 +12,7 @@ const Dashboard = () => {
   const [monthly, setMonthly] = useState([]);
   const [yearly, setYearly] = useState([]);
   const [viewType, setViewType] = useState('day'); // 'day' | 'month' | 'year'
+  const [chartOffset, setChartOffset] = useState(0); // 0 = current, -1 = previous period, etc.
   const [hoveredBarIndex, setHoveredBarIndex] = useState(null);
   const [allLogs, setAllLogs] = useState([]);
   const [tplTimeRange, setTplTimeRange] = useState('today'); // 'today' | 'yesterday' | '7days' | 'all'
@@ -103,53 +104,79 @@ const Dashboard = () => {
 
   const templatePerf = computeTemplatePerf();
 
-  // Build chart data depending on viewType ('day', 'month', 'year')
+  // Build chart data depending on viewType ('day', 'month', 'year') and chartOffset for navigation
   const buildChartData = () => {
     const now = new Date();
     if (viewType === 'month') {
+      // 12 months per page, navigate by 12-month blocks
+      const baseMonthOffset = chartOffset * 12;
       const months = [];
       for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const d = new Date(now.getFullYear(), now.getMonth() - i + baseMonthOffset, 1);
         const year = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const monthStr = `${year}-${m}`;
         const monthEntry = monthly.find(w => w.month === monthStr);
         months.push({
           label: d.toLocaleDateString('en', { month: 'short' }),
-          fullLabel: `${d.toLocaleDateString('en', { month: 'short' })} ${year}`,
+          sublabel: String(year),
+          fullLabel: `${d.toLocaleDateString('en', { month: 'long' })} ${year}`,
           count: monthEntry ? monthEntry.count : 0
         });
       }
       return months;
     } else if (viewType === 'year') {
+      // 5 years per page, navigate by 5-year blocks
+      const baseYearOffset = chartOffset * 5;
       const years = [];
       const currentYear = now.getFullYear();
       for (let i = 4; i >= 0; i--) {
-        const yearNum = currentYear - i;
+        const yearNum = currentYear - i + baseYearOffset;
         const yearStr = String(yearNum);
         const yearEntry = yearly.find(w => w.year === yearStr);
         years.push({
           label: yearStr,
+          sublabel: '',
           fullLabel: yearStr,
           count: yearEntry ? yearEntry.count : 0
         });
       }
       return years;
     } else {
-      // Default: 'day' (Last 7 Days)
+      // 'day' view: 7 days per page, navigate by 7-day blocks
+      const baseDayOffset = chartOffset * 7;
       const days = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now);
-        d.setDate(d.getDate() - i);
+        d.setDate(d.getDate() - i + baseDayOffset);
         const dateStr = d.toISOString().slice(0, 10);
         const weekEntry = weekly.find(w => w.day === dateStr);
         days.push({
           label: d.toLocaleDateString('en', { weekday: 'short' }),
-          fullLabel: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+          sublabel: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+          fullLabel: d.toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
           count: weekEntry ? weekEntry.count : 0
         });
       }
       return days;
+    }
+  };
+
+  // Label for current period shown in chart header
+  const getPeriodLabel = () => {
+    const now = new Date();
+    if (chartOffset === 0) return 'Current';
+    if (viewType === 'day') {
+      const start = new Date(now); start.setDate(start.getDate() + chartOffset * 7 - 6);
+      const end = new Date(now); end.setDate(end.getDate() + chartOffset * 7);
+      return `${start.toLocaleDateString('en', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else if (viewType === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 11 + chartOffset * 12, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + chartOffset * 12, 1);
+      return `${start.toLocaleDateString('en', { month: 'short', year: 'numeric' })} – ${end.toLocaleDateString('en', { month: 'short', year: 'numeric' })}`;
+    } else {
+      const currentYear = now.getFullYear();
+      return `${currentYear - 4 + chartOffset * 5} – ${currentYear + chartOffset * 5}`;
     }
   };
 
@@ -219,76 +246,53 @@ const Dashboard = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
         {/* Message Volume Chart */}
         <div style={{ backgroundColor: 'var(--white)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          {/* Chart Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <TrendingUp size={16} color="var(--primary)" />
-              Message Volume {viewType === 'day' ? '(Day Wise)' : viewType === 'month' ? '(Monthly Wise)' : '(Yearly Wise)'}
+              Message Volume {viewType === 'day' ? '(Day Wise)' : viewType === 'month' ? '(Monthly)' : '(Yearly)'}
             </h3>
             <div style={{ display: 'flex', backgroundColor: '#f1f5f9', borderRadius: '6px', padding: '3px', gap: '2px' }}>
-              <button
-                onClick={() => setViewType('day')}
-                style={{
-                  padding: '3px 9px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  backgroundColor: viewType === 'day' ? 'var(--white, #fff)' : 'transparent',
-                  color: viewType === 'day' ? 'var(--primary, #075e54)' : '#64748b',
-                  boxShadow: viewType === 'day' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Day
-              </button>
-              <button
-                onClick={() => setViewType('month')}
-                style={{
-                  padding: '3px 9px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  backgroundColor: viewType === 'month' ? 'var(--white, #fff)' : 'transparent',
-                  color: viewType === 'month' ? 'var(--primary, #075e54)' : '#64748b',
-                  boxShadow: viewType === 'month' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Month
-              </button>
-              <button
-                onClick={() => setViewType('year')}
-                style={{
-                  padding: '3px 9px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  backgroundColor: viewType === 'year' ? 'var(--white, #fff)' : 'transparent',
-                  color: viewType === 'year' ? 'var(--primary, #075e54)' : '#64748b',
-                  boxShadow: viewType === 'year' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Year
-              </button>
+              {['day', 'month', 'year'].map(v => (
+                <button key={v} onClick={() => { setViewType(v); setChartOffset(0); }} style={{ padding: '3px 9px', fontSize: '11px', fontWeight: '600', border: 'none', borderRadius: '4px', cursor: 'pointer', backgroundColor: viewType === v ? 'var(--white, #fff)' : 'transparent', color: viewType === v ? 'var(--primary, #075e54)' : '#64748b', boxShadow: viewType === v ? '0 1px 2px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 
+          {/* Navigation Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <button
+              onClick={() => setChartOffset(prev => prev - 1)}
+              style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: 'var(--text)' }}
+              title={`Previous ${viewType === 'day' ? 'week' : viewType === 'month' ? 'year' : '5 years'}`}
+            >
+              <ChevronLeft size={14} /> Prev
+            </button>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-mid)' }}>
+              {getPeriodLabel()}
+            </span>
+            <button
+              onClick={() => setChartOffset(prev => prev + 1)}
+              disabled={chartOffset >= 0}
+              style={{ padding: '4px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: chartOffset >= 0 ? '#f4f6f9' : '#fff', cursor: chartOffset >= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: chartOffset >= 0 ? 'var(--text-light)' : 'var(--text)', opacity: chartOffset >= 0 ? 0.5 : 1 }}
+              title="Next"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+
           {loading ? (
-            <div style={{ height: '110px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)', fontSize: '13px' }}>Loading...</div>
+            <div style={{ height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)', fontSize: '13px' }}>Loading...</div>
           ) : (
             <>
               {/* Bar chart */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: viewType === 'month' ? '3px' : '6px', height: '90px', marginTop: '16px', marginBottom: '24px', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: viewType === 'month' ? '3px' : '6px', height: '90px', marginTop: '8px', position: 'relative' }}>
                 {chartData.map((d, i) => (
                   <div
                     key={i}
-                    style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', position: 'relative' }}
+                    style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', position: 'relative', cursor: 'pointer' }}
                     onMouseEnter={() => setHoveredBarIndex(i)}
                     onMouseLeave={() => setHoveredBarIndex(null)}
                   >
@@ -298,7 +302,7 @@ const Dashboard = () => {
                         width: '100%',
                         height: `${Math.round(d.count / maxVal * 100)}%`,
                         minHeight: '4px',
-                        backgroundColor: hoveredBarIndex === i ? 'var(--green, #25d366)' : 'var(--green-mid, #66bb6a)',
+                        backgroundColor: hoveredBarIndex === i ? '#16a34a' : (d.count > 0 ? 'var(--green-mid, #66bb6a)' : '#e2e8f0'),
                         borderRadius: '3px 3px 0 0',
                         cursor: 'pointer',
                         transition: 'background 0.2s',
@@ -307,12 +311,19 @@ const Dashboard = () => {
                   </div>
                 ))}
               </div>
-              {/* X axis labels */}
+              {/* X axis labels — day name + date */}
               <div style={{ display: 'flex', gap: viewType === 'month' ? '3px' : '6px', marginTop: '6px' }}>
                 {chartData.map((d, i) => (
-                  <span key={i} style={{ flex: 1, fontSize: '9px', color: 'var(--text-light)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.fullLabel || d.label}>
-                    {d.label}
-                  </span>
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }} title={d.fullLabel}>
+                    <span style={{ fontSize: '9px', fontWeight: '600', color: hoveredBarIndex === i ? 'var(--primary)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center' }}>
+                      {d.label}
+                    </span>
+                    {d.sublabel && (
+                      <span style={{ fontSize: '8px', color: 'var(--text-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center' }}>
+                        {d.sublabel}
+                      </span>
+                    )}
+                  </div>
                 ))}
               </div>
             </>

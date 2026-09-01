@@ -20,6 +20,7 @@ import Blacklist from './pages/Settings/Blacklist';
 import Support from './pages/Settings/Support';
 import Wallet from './pages/Wallet/Wallet';
 import Profile from './pages/Profile/Profile';
+import AutoReplies from './pages/AutoReplies/AutoReplies';
 
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
@@ -61,6 +62,7 @@ const App = () => {
               <Route path="templates" element={<Templates />} />
               <Route path="library" element={<TemplateLibrary />} />
               <Route path="logs" element={<Logs />} />
+              <Route path="auto-replies" element={<AutoReplies />} />
 
               {/* Admin specific sub-routes */}
               <Route path="users" element={
