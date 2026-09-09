@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+﻿import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../utils/api';
-import { MessageSquare, Plus, Edit2, Trash2, Power, Search } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, Power, Search } from 'lucide-react';
 import { AppContext } from '../../context/AppContext';
 
 const AutoReplies = () => {
-  const { showToast } = useContext(AppContext);
+  const { showToast, showConfirm } = useContext(AppContext);
   const [bots, setBots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -30,8 +30,10 @@ const AutoReplies = () => {
   };
 
   const handleToggle = async (id, currentStatus) => {
+    const botId = id?._id || id?.id || id;
+    if (!botId) return;
     try {
-      await api('PATCH', `/api/bots/${id}/toggle`, { enabled: currentStatus ? 0 : 1 });
+      await api('PATCH', `/api/bots/${botId}/toggle`, { enabled: currentStatus ? 0 : 1 });
       fetchBots();
       showToast(`Rule ${currentStatus ? 'disabled' : 'enabled'}`, 'success');
     } catch (e) {
@@ -39,12 +41,23 @@ const AutoReplies = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this auto-reply rule?')) return;
+  const handleDelete = async (bot) => {
+    const botId = bot?.id || bot?._id || bot;
+    const keyword = bot?.keyword || 'this';
+
+    const ok = await showConfirm({
+      title: 'Delete Auto-Reply Rule',
+      message: `Are you sure you want to delete the rule for "${keyword}"? Customers will no longer receive this automated reply.`,
+      type: 'danger',
+      confirmText: 'Delete'
+    });
+
+    if (!ok) return;
+
     try {
-      await api('DELETE', `/api/bots/${id}`);
+      await api('DELETE', `/api/bots/${botId}`);
+      showToast('Auto-reply rule deleted successfully', 'success');
       fetchBots();
-      showToast('Rule deleted', 'success');
     } catch (e) {
       showToast(e.message || 'Failed to delete rule', 'error');
     }
@@ -53,48 +66,65 @@ const AutoReplies = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.keyword.trim() || !formData.reply.trim()) {
-      showToast('Keyword and Reply are required', 'warning');
+      showToast('Keyword and Reply Message are required', 'error');
       return;
     }
     setSaving(true);
     try {
       await api('POST', '/api/bots', formData);
+      showToast('Auto-reply rule created successfully', 'success');
       setShowModal(false);
       setFormData({ keyword: '', match_type: 'exact', reply: '' });
       fetchBots();
-      showToast('Auto-reply rule created', 'success');
-    } catch (err) {
-      showToast(err.message || 'Failed to save', 'error');
+    } catch (e) {
+      showToast(e.message || 'Failed to create auto-reply rule', 'error');
     }
     setSaving(false);
   };
 
-  const filtered = bots.filter(b => b.keyword?.toLowerCase().includes(search.toLowerCase()) || b.reply?.toLowerCase().includes(search.toLowerCase()));
-
-  const cardStyle = { backgroundColor: 'var(--white)', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '20px', overflow: 'hidden' };
-  const cardTitleStyle = { padding: '16px 20px', borderBottom: '1px solid var(--border)', fontSize: '15px', fontWeight: '700', color: 'var(--text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
+  const filtered = bots.filter(b => 
+    (b.keyword || '').toLowerCase().includes(search.toLowerCase()) || 
+    (b.reply || '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div style={{ padding: '30px' }}>
-      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', color: 'var(--text)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <MessageSquare size={24} /> Auto Replies
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <MessageSquare size={24} color="var(--primary, #075e54)" /> Auto Replies
           </h1>
-          <p style={{ color: 'var(--text-mid)', fontSize: '14px' }}>Automatically respond to specific keywords</p>
+          <p style={{ margin: 0, color: 'var(--text-mid)', fontSize: '14px' }}>
+            Automatically respond to specific keywords sent by customers
+          </p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', background: 'var(--primary, #075e54)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+        <button
+          onClick={() => { setFormData({ keyword: '', match_type: 'exact', reply: '' }); setShowModal(true); }}
+          style={{
+            background: 'var(--primary, #075e54)',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 18px',
+            borderRadius: '8px',
+            fontWeight: '600',
+            fontSize: '13px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+          }}
         >
-          <Plus size={18} /> Add Rule
+          <Plus size={16} /> Add Rule
         </button>
       </div>
 
-      <div style={cardStyle}>
-        <div style={cardTitleStyle}>
-          <span>🤖 Active Rules ({bots.length})</span>
-          <div style={{ display: 'flex', alignItems: 'center', background: '#f9fbfd', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', width: '220px' }}>
+      <div style={{ backgroundColor: 'var(--white, #fff)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff' }}>
+          <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text)' }}>
+            Active Rules ({filtered.length})
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '6px 14px', borderRadius: '8px', width: '260px' }}>
             <Search size={14} color="var(--text-light)" />
             <input
               type="text"
@@ -109,58 +139,63 @@ const AutoReplies = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
           <thead style={{ background: '#f8f9fa', borderBottom: '2px solid var(--border)', color: 'var(--text-mid)', textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.04em' }}>
             <tr>
-              <th style={{ padding: '11px 20px', fontWeight: '700' }}>Keyword</th>
-              <th style={{ padding: '11px 20px', fontWeight: '700' }}>Match Type</th>
-              <th style={{ padding: '11px 20px', fontWeight: '700', width: '40%' }}>Reply Message</th>
-              <th style={{ padding: '11px 20px', fontWeight: '700', textAlign: 'center' }}>Status</th>
-              <th style={{ padding: '11px 20px', fontWeight: '700', textAlign: 'right' }}>Actions</th>
+              <th style={{ padding: '12px 20px', fontWeight: '700' }}>Keyword</th>
+              <th style={{ padding: '12px 20px', fontWeight: '700' }}>Match Type</th>
+              <th style={{ padding: '12px 20px', fontWeight: '700', width: '40%' }}>Reply Message</th>
+              <th style={{ padding: '12px 20px', fontWeight: '700', textAlign: 'center' }}>Status</th>
+              <th style={{ padding: '12px 20px', fontWeight: '700', textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: 'var(--text-light)' }}>Loading...</td></tr>
+              <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>Loading auto-reply rules...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🤖</div>
-                No auto-reply rules found.
+              <tr><td colSpan="5" style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--text-light)' }}>
+                <div style={{ fontSize: '36px', marginBottom: '10px' }}>🤖</div>
+                <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-mid)' }}>No auto-reply rules found</div>
+                <div style={{ fontSize: '12px', marginTop: '4px' }}>Click "+ Add Rule" above to create an automated reply for incoming keywords.</div>
               </td></tr>
             ) : (
-              filtered.map((b) => (
-                <tr key={b._id} style={{ borderBottom: '1px solid var(--border)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f9fbfd'}
-                  onMouseLeave={e => e.currentTarget.style.background = ''}>
-                  <td style={{ padding: '12px 20px', fontWeight: '700', color: 'var(--text)' }}>{b.keyword}</td>
-                  <td style={{ padding: '12px 20px' }}>
-                    <span style={{ background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600' }}>
-                      {b.match_type === 'exact' ? 'Exact Match' : b.match_type === 'contains' ? 'Contains' : 'Starts With'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 20px', color: 'var(--text-mid)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.reply}>
-                    {b.reply}
-                  </td>
-                  <td style={{ padding: '12px 20px', textAlign: 'center' }}>
-                    <button 
-                      onClick={() => handleToggle(b._id, b.enabled)}
-                      style={{ background: b.enabled ? '#dcfce7' : '#fee2e2', color: b.enabled ? '#16a34a' : '#ef4444', border: 'none', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <Power size={12} /> {b.enabled ? 'Active' : 'Paused'}
-                    </button>
-                  </td>
-                  <td style={{ padding: '12px 20px', textAlign: 'right' }}>
-                    <button onClick={() => handleDelete(b._id)} title="Delete Rule"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: '4px' }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-light)'}>
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))
+              filtered.map((b) => {
+                const botId = b.id || b._id;
+                return (
+                  <tr key={botId} style={{ borderBottom: '1px solid var(--border)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f9fbfd'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td style={{ padding: '14px 20px', fontWeight: '700', color: 'var(--text)' }}>{b.keyword}</td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <span style={{ background: '#e2e8f0', color: '#475569', padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '600' }}>
+                        {b.match_type === 'exact' ? 'Exact Match' : b.match_type === 'contains' ? 'Contains' : 'Starts With'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 20px', color: 'var(--text-mid)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.reply}>
+                      {b.reply}
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                      <button 
+                        onClick={() => handleToggle(botId, b.enabled)}
+                        style={{ background: b.enabled ? '#dcfce7' : '#fee2e2', color: b.enabled ? '#16a34a' : '#ef4444', border: 'none', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Power size={12} /> {b.enabled ? 'Active' : 'Paused'}
+                      </button>
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                      <button onClick={() => handleDelete(b)} title="Delete Rule"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '6px', borderRadius: '6px' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
+      {/* CREATE AUTO-REPLY MODAL */}
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '12px', width: '90%', maxWidth: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
