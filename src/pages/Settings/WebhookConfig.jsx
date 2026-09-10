@@ -51,6 +51,7 @@ const WebhookConfig = () => {
   const [verifyToken, setVerifyToken] = useState('');
   const [publicUrl, setPublicUrl] = useState('');
   const [events, setEvents] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
@@ -78,8 +79,12 @@ const WebhookConfig = () => {
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
-      const res = await api('GET', '/api/webhook/events');
-      if (Array.isArray(res)) setEvents(res);
+      const [eventRes, deliveryRes] = await Promise.all([
+        api('GET', '/api/webhook/events'),
+        api('GET', '/api/webhook/deliveries?limit=100'),
+      ]);
+      if (Array.isArray(eventRes)) setEvents(eventRes);
+      if (Array.isArray(deliveryRes)) setDeliveries(deliveryRes);
     } catch (e) { console.error(e); }
     setLoadingEvents(false);
   }, []);
@@ -140,7 +145,7 @@ const WebhookConfig = () => {
 
   const getStatusColor = (status) => {
     if (status === 'delivered' || status === 'read' || status === 'received') return '#2e7d32';
-    if (status === 'failed') return '#c62828';
+    if (['failed', 'exhausted', 'conflict'].includes(status)) return '#c62828';
     return '#1565c0';
   };
 
@@ -214,6 +219,30 @@ const WebhookConfig = () => {
               </div>
             )}
           </form>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ ...cardTitle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>🚚 NexDine Durable Deliveries</span>
+          <button onClick={fetchEvents} title="Refresh deliveries" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-mid)' }}><RefreshCw size={12} /> Refresh</button>
+        </div>
+        <div style={{ padding: '16px 20px', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <thead><tr>{['Event', 'Type', 'Status', 'Attempts', 'Next attempt', 'Last error'].map(label => <th key={label} style={{ padding: '9px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-mid)' }}>{label}</th>)}</tr></thead>
+            <tbody>
+              {deliveries.length === 0 ? <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-light)' }}>No NexDine deliveries recorded.</td></tr> : deliveries.map(delivery => (
+                <tr key={delivery.id}>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={delivery.eventId}>{delivery.eventId}</td>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)' }}>{delivery.eventType}</td>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)', color: getStatusColor(delivery.status), fontWeight: 700 }}>{delivery.status}</td>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)' }}>{delivery.attemptCount}</td>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)' }}>{delivery.nextAttemptAt ? new Date(delivery.nextAttemptAt).toLocaleString() : '—'}</td>
+                  <td style={{ padding: '9px', borderBottom: '1px solid var(--border)', color: delivery.lastError ? '#c62828' : 'var(--text-light)' }}>{delivery.lastError || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

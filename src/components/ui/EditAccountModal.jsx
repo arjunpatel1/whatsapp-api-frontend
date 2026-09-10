@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, KeyRound, ShieldCheck, X } from 'lucide-react';
 import { api } from '../../utils/api';
 import { AuthContext } from '../../context/AuthContext';
 import { AppContext } from '../../context/AppContext';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const NEXDINE_WEBHOOK_URL = 'https://api.nexdine.myteknoland.in/v1/whatsapp/webhook/nexmsg';
 
 const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
   const { user } = useContext(AuthContext);
@@ -17,9 +18,20 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
     token: '',
     phoneId: '',
     wabaId: '',
+    catalogId: '',
     package: '',
     subscriptionPeriod: '',
     autoRecharge: false
+  });
+  const [ordering, setOrdering] = useState({
+    enabled: false,
+    webhookUrl: NEXDINE_WEBHOOK_URL,
+    webhookSecret: '',
+    secretConfigured: false,
+    configuredAt: null,
+    lastDeliveryAt: null,
+    lastErrorAt: null,
+    lastError: ''
   });
   const [phoneError, setPhoneError] = useState('');
   const [periodMonth, setPeriodMonth] = useState('');
@@ -45,9 +57,20 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         token: account.token || '',
         phoneId: account.phoneId || '',
         wabaId: account.wabaId || '',
+        catalogId: account.catalogId || '',
         package: account.package || '',
         subscriptionPeriod: account.subscriptionPeriod || '',
         autoRecharge: !!account.autoRecharge
+      });
+      setOrdering({
+        enabled: !!account.nexdineOrdering?.enabled,
+        webhookUrl: NEXDINE_WEBHOOK_URL,
+        webhookSecret: '',
+        secretConfigured: !!account.nexdineOrdering?.secretConfigured,
+        configuredAt: account.nexdineOrdering?.configuredAt || null,
+        lastDeliveryAt: account.nexdineOrdering?.lastDeliveryAt || null,
+        lastErrorAt: account.nexdineOrdering?.lastErrorAt || null,
+        lastError: account.nexdineOrdering?.lastError || ''
       });
       setPhoneError('');
       // Parse existing subscriptionPeriod e.g. "Jun01-30" -> extract month/year
@@ -127,13 +150,21 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.token || !formData.phoneId || !formData.wabaId) {
-      showToast('Name, Token, Phone ID and WABA ID are required', 'warning');
+    if (!formData.name || !formData.phoneId || !formData.wabaId) {
+      showToast('Name, Phone ID and WABA ID are required', 'warning');
+      return;
+    }
+    if (ordering.enabled && !formData.catalogId.trim()) {
+      showToast('Catalog ID is required before WhatsApp ordering can be enabled', 'warning');
+      return;
+    }
+    if (ordering.enabled && (ordering.webhookUrl !== NEXDINE_WEBHOOK_URL || (!ordering.secretConfigured && ordering.webhookSecret.length < 32))) {
+      showToast('Configure the trusted NexDine endpoint and a signing secret of at least 32 characters', 'warning');
       return;
     }
 
     const cleanPhone = (formData.displayPhone || '').trim();
-    const phoneRegex = /^\+[0-9\s\-]+$/;
+    const phoneRegex = /^\+[0-9\s-]+$/;
     if (!cleanPhone.startsWith('+') || !phoneRegex.test(cleanPhone)) {
       setPhoneError('Must start with + followed by country code (e.g., +91)');
       return;
@@ -145,7 +176,14 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
     }
     setLoading(true);
     try {
-      await api('PUT', `/api/accounts/${account.id}`, formData);
+      const accountPayload = { ...formData };
+      if (!accountPayload.token) delete accountPayload.token;
+      await api('PUT', `/api/accounts/${account.id}`, accountPayload);
+      await api('PUT', `/api/accounts/${account.id}/whatsapp-ordering`, {
+        enabled: ordering.enabled,
+        webhookUrl: ordering.webhookUrl,
+        ...(ordering.webhookSecret ? { webhookSecret: ordering.webhookSecret } : {})
+      });
       showToast('Account updated successfully!', 'success');
       onSuccess();
       onClose();
@@ -156,6 +194,15 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
   };
 
   if (!isOpen || !account) return null;
+
+  const generateSigningSecret = () => {
+    const bytes = new Uint8Array(32);
+    window.crypto.getRandomValues(bytes);
+    const secret = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    setOrdering(prev => ({ ...prev, webhookSecret: secret }));
+  };
+
+  const formatStatusDate = value => value ? new Date(value).toLocaleString() : 'Never';
 
   const field = (label, name, type = 'text', placeholder = '') => (
     <div style={{ marginBottom: '14px' }}>
@@ -190,9 +237,37 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, padding: '20px 24px' }}>
           {field('Name', 'name', 'text', 'e.g. Sales Number')}
           {field('Display Phone', 'displayPhone', 'text', '+91 XXXXX XXXXX')}
-          {field('Access Token', 'token', 'text', 'Bearer token...')}
+          {field('New access token (leave blank to keep current)', 'token', 'password', 'Only enter when rotating the Meta token')}
           {field('Phone Number ID', 'phoneId', 'text', 'Phone ID from Meta')}
           {field('WABA ID', 'wabaId', 'text', 'WhatsApp Business Account ID')}
+          {field('Catalog ID', 'catalogId', 'text', 'Meta commerce catalog ID')}
+
+          <section style={{ margin: '18px 0', padding: '16px', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <ShieldCheck size={20} color="var(--green)" />
+                <div><strong style={{ fontSize: '14px' }}>NexDine WhatsApp ordering</strong><div style={{ color: 'var(--text-mid)', fontSize: '11px', marginTop: '3px' }}>Securely forward greetings and catalog orders for this number.</div></div>
+              </div>
+              <input aria-label="Enable NexDine WhatsApp ordering" type="checkbox" checked={ordering.enabled} onChange={e => setOrdering(prev => ({ ...prev, enabled: e.target.checked }))} style={{ width: '18px', height: '18px' }} />
+            </div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '6px' }}>Webhook URL</label>
+            <input readOnly aria-describedby="nexdine-webhook-help" type="url" value={NEXDINE_WEBHOOK_URL} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', boxSizing: 'border-box', background: '#f4f6f9', color: 'var(--text-mid)' }} />
+            <div id="nexdine-webhook-help" style={{ marginTop: '5px', color: 'var(--text-mid)', fontSize: '11px' }}>Restricted to the approved HTTPS NexDine endpoint.</div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', margin: '12px 0 6px' }}>HMAC signing secret</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input autoComplete="new-password" type="password" value={ordering.webhookSecret} onChange={e => setOrdering(prev => ({ ...prev, webhookSecret: e.target.value }))} placeholder={ordering.secretConfigured ? 'Configured — leave blank to keep it' : 'Minimum 32 characters'} style={{ minWidth: 0, flex: 1, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px', boxSizing: 'border-box' }} />
+              <button type="button" onClick={generateSigningSecret} title="Generate a cryptographically secure signing secret" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '0 12px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', cursor: 'pointer', color: 'var(--text)' }}><KeyRound size={15} /> Generate</button>
+            </div>
+            <div style={{ marginTop: '7px', color: ordering.secretConfigured ? 'var(--green)' : 'var(--text-mid)', fontSize: '11px' }}>{ordering.secretConfigured ? '✓ Secret securely configured' : 'The secret is write-only and encrypted at rest.'}</div>
+            <div style={{ marginTop: '14px', padding: '11px 12px', borderRadius: '8px', border: `1px solid ${ordering.lastError ? '#ffcdd2' : '#c8e6c9'}`, background: ordering.lastError ? '#fff5f5' : '#f5fff6', display: 'flex', gap: '9px', alignItems: 'flex-start' }}>
+              {ordering.lastError ? <AlertTriangle size={17} color="#d32f2f" /> : <CheckCircle2 size={17} color="var(--green)" />}
+              <div style={{ minWidth: 0, fontSize: '11px', color: 'var(--text-mid)' }}>
+                <strong style={{ display: 'block', color: ordering.lastError ? '#b71c1c' : 'var(--text)' }}>{ordering.lastError || (ordering.lastDeliveryAt ? 'Last signed delivery succeeded' : 'Ready for first signed delivery')}</strong>
+                <span>Last delivery: {formatStatusDate(ordering.lastDeliveryAt)}</span>
+                {ordering.lastErrorAt && <span style={{ display: 'block' }}>Last failure: {formatStatusDate(ordering.lastErrorAt)}</span>}
+              </div>
+            </div>
+          </section>
 
           {/* Package */}
           <div style={{ marginBottom: '14px' }}>
