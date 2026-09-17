@@ -221,17 +221,29 @@ const Numbers = () => {
   };
 
   const [selectedClientId, setSelectedClientId] = useState('');
+  const selectedClientIdRef = useRef(selectedClientId);
+  useEffect(() => {
+    selectedClientIdRef.current = selectedClientId;
+  }, [selectedClientId]);
+
+  const formDataRef = useRef(formData);
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   const handleEmbeddedSignupSuccess = async ({ code, phoneId, wabaId }) => {
     setIsEmbeddedLoading(true);
     try {
+      const currentClientId = selectedClientIdRef.current;
+      const currentFormData = formDataRef.current;
+
       const payload = {
         code,
         phoneId,
         wabaId,
-        package: formData.packageId || 'Free',
-        name: formData.accountName || undefined,
-        clientId: user?.role === 'admin' ? selectedClientId : undefined
+        package: currentFormData.packageId || 'Free',
+        name: currentFormData.accountName || undefined,
+        clientId: user?.role === 'admin' ? (currentClientId || undefined) : undefined
       };
       console.log('Sending embedded signup payload:', payload);
       try {
@@ -240,7 +252,10 @@ const Numbers = () => {
         console.warn('Embedded signup direct POST warning, running full Meta sync...', embErr);
       }
 
-      await api('POST', '/api/accounts/sync-meta', { package: formData.packageId || 'Free', clientId: user?.role === 'admin' ? selectedClientId : undefined });
+      await api('POST', '/api/accounts/sync-meta', { 
+        package: currentFormData.packageId || 'Free', 
+        clientId: user?.role === 'admin' ? (currentClientId || undefined) : undefined 
+      });
       setIsModalOpen(false);
       await fetchAccounts();
       showToast('WhatsApp number synced successfully from Meta!', 'success');

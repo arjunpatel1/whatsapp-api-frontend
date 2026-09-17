@@ -33,7 +33,7 @@ const Dashboard = () => {
       }
 
       // Load dashboard stats
-      const dashRes = await api('GET', '/api/dashboard');
+      const dashRes = await api('GET', `/api/dashboard?timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || '+05:30')}`);
       if (dashRes.stats) {
         const s = dashRes.stats;
         const total = s.total || 0;
@@ -149,7 +149,7 @@ const Dashboard = () => {
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now);
         d.setDate(d.getDate() - i + baseDayOffset);
-        const dateStr = d.toISOString().slice(0, 10);
+        const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dayNum = String(d.getDate()).padStart(2, '0'); const dateStr = `${y}-${m}-${dayNum}`;
         const weekEntry = weekly.find(w => w.day === dateStr);
         days.push({
           label: d.toLocaleDateString('en', { weekday: 'short' }),

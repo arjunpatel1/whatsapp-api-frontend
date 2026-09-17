@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { api } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/constants';
 import { AppContext } from '../../context/AppContext';
 import { MessageSquare, Download, Trash2, Search, Calendar, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -112,7 +113,8 @@ const Logs = () => {
   const handleExport = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/logs/export', {
+      const baseUrl = (API_BASE_URL || '').replace(/\/+$/, '');
+      const res = await fetch(`${baseUrl}/api/logs/export`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to export logs');

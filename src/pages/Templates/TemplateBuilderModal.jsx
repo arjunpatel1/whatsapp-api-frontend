@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { X, Save, Send, Image as ImageIcon, Smartphone, ExternalLink, Phone, GripVertical, Trash2, Plus, ChevronDown, Search, Video, FileText, MapPin, Upload } from 'lucide-react';
 import { api } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/constants';
 import { AppContext } from '../../context/AppContext';
 
 const COUNTRY_CODES = [
@@ -799,7 +800,8 @@ const TemplateBuilderModal = ({ isOpen, onClose, onSave, initialData, accounts =
                           formDataUpload.append('accountId', selectedAccountId);
                           const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
                           const authkey = localStorage.getItem('authkey') || '';
-                          const res = await fetch('/api/send/upload-template-media', {
+                          const baseUrl = (API_BASE_URL || '').replace(/\/+$/, '');
+                            const res = await fetch(`${baseUrl}/api/send/upload-template-media`, {
                             method: 'POST',
                             headers: {
                               ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
