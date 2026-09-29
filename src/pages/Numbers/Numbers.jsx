@@ -53,6 +53,28 @@ const matchesBalance = (balance, filterText) => {
   return true;
 };
 
+const OrderingBadge = ({ account }) => {
+  const ready = Boolean(
+    account?.nexdineOrdering?.enabled
+    && account?.nexdineOrdering?.secretConfigured
+    && account?.catalogId
+    && !account?.nexdineOrdering?.lastError
+  );
+  const enabled = Boolean(account?.nexdineOrdering?.enabled);
+  const label = ready ? 'Ordering ready' : enabled ? 'Ordering needs setup' : 'Ordering off';
+  const colors = ready
+    ? { background: '#e8f5e9', color: '#1b7f46' }
+    : enabled
+      ? { background: '#fff3e0', color: '#ad5b00' }
+      : { background: '#f2f4f7', color: '#667085' };
+
+  return (
+    <span title={ready ? 'Catalog and secure webhook configured' : 'Open Edit to complete WhatsApp ordering setup'} style={{ display: 'inline-block', marginTop: '5px', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: '700', ...colors }}>
+      {label}
+    </span>
+  );
+};
+
 const Numbers = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -104,7 +126,6 @@ const Numbers = () => {
     accountName: '',
     displayPhone: '',
     phoneId: '',
-    wabaId: '',
     wabaId: '',
     token: '',
     packageId: '',
@@ -1106,6 +1127,7 @@ const Numbers = () => {
                           : <span style={{ display: 'inline-block', background: '#fbe9e7', color: '#c62828', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: '700' }}>⚠️ No Sub</span>
                         }
                       </div>
+                      <OrderingBadge account={acc} />
                     </td>
                     <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
                       <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>{Number(acc.whatsappBalance || acc.prepaidBalance || 0).toFixed(2)}</div>
@@ -2108,6 +2130,7 @@ const Numbers = () => {
                                   : <span style={{ display: 'inline-block', background: '#fbe9e7', color: '#c62828', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: '700' }}>⚠️ No Sub</span>
                                 }
                               </div>
+                              <OrderingBadge account={acc} />
                             </td>
                             <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
                               <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '13px' }}>{Number(acc.whatsappBalance || acc.prepaidBalance || 0).toFixed(2)}</div>

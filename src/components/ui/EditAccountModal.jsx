@@ -34,6 +34,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
     lastError: ''
   });
   const [phoneError, setPhoneError] = useState('');
+  const [formError, setFormError] = useState('');
   const [periodMonth, setPeriodMonth] = useState('');
   const [periodYear, setPeriodYear] = useState('');
 
@@ -73,6 +74,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         lastError: account.nexdineOrdering?.lastError || ''
       });
       setPhoneError('');
+      setFormError('');
       // Parse existing subscriptionPeriod e.g. "Jun01-30" -> extract month/year
       if (account.subscriptionPeriod) {
         const parts = account.subscriptionPeriod.split('-');
@@ -150,16 +152,20 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
     if (!formData.name || !formData.phoneId || !formData.wabaId) {
-      showToast('Name, Phone ID and WABA ID are required', 'warning');
+      setFormError('Enter the account name, Phone Number ID, and WABA ID.');
+      showToast('Complete the required Meta account fields', 'warning');
       return;
     }
     if (ordering.enabled && !formData.catalogId.trim()) {
+      setFormError('Enter the Meta Catalog ID before enabling WhatsApp ordering.');
       showToast('Catalog ID is required before WhatsApp ordering can be enabled', 'warning');
       return;
     }
     if (ordering.enabled && (ordering.webhookUrl !== NEXDINE_WEBHOOK_URL || (!ordering.secretConfigured && ordering.webhookSecret.length < 32))) {
-      showToast('Configure the trusted NexDine endpoint and a signing secret of at least 32 characters', 'warning');
+      setFormError('Generate or enter a signing secret of at least 32 characters before enabling ordering.');
+      showToast('Configure the trusted NexDine endpoint and signing secret', 'warning');
       return;
     }
 
@@ -188,6 +194,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
       onSuccess();
       onClose();
     } catch (err) {
+      setFormError(err.message || 'The account could not be updated. Review the highlighted setup details.');
       showToast(err.message || 'Failed to update account', 'error');
     }
     setLoading(false);
@@ -203,8 +210,16 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
   };
 
   const formatStatusDate = value => value ? new Date(value).toLocaleString() : 'Never';
+  const orderingChecks = [
+    { label: 'Meta number', complete: Boolean(formData.phoneId && formData.wabaId), detail: 'Phone Number ID and WABA ID' },
+    { label: 'Commerce catalog', complete: Boolean(formData.catalogId.trim()), detail: 'Meta Catalog ID assigned to this WABA' },
+    { label: 'Secure webhook', complete: Boolean(ordering.secretConfigured || ordering.webhookSecret.length >= 32), detail: 'Encrypted HMAC signing secret' },
+    { label: 'Ordering switch', complete: ordering.enabled, detail: 'Forward greetings and catalog orders' }
+  ];
+  const completedChecks = orderingChecks.filter(item => item.complete).length;
+  const orderingReady = completedChecks === orderingChecks.length && !ordering.lastError;
 
-  const field = (label, name, type = 'text', placeholder = '') => (
+  const field = (label, name, type = 'text', placeholder = '', help = '') => (
     <div style={{ marginBottom: '14px' }}>
       <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--text-mid)', marginBottom: '6px' }}>{label}</label>
       <input
@@ -215,6 +230,7 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
         placeholder={placeholder}
         style={{ width: '100%', padding: '10px 12px', border: (name === 'displayPhone' && phoneError) ? '1px solid #e53935' : '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
       />
+      {help && <div style={{ color: 'var(--text-mid)', fontSize: '11px', marginTop: '5px', lineHeight: 1.45 }}>{help}</div>}
       {name === 'displayPhone' && phoneError && (
         <p style={{ color: '#e53935', fontSize: '11px', marginTop: '4px', marginBottom: '0', fontWeight: '500' }}>
           {phoneError}
@@ -229,18 +245,41 @@ const EditAccountModal = ({ isOpen, onClose, account, onSuccess }) => {
 
         {/* Header */}
         <div style={{ background: '#f4f6f9', padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>✏️ Edit Number</h2>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Manage WhatsApp number</h2>
+            <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-mid)' }}>Meta account, catalog and NexDine ordering</div>
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', color: 'var(--text-light)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
 
         {/* Body */}
         <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, padding: '20px 24px' }}>
-          {field('Name', 'name', 'text', 'e.g. Sales Number')}
-          {field('Display Phone', 'displayPhone', 'text', '+91 XXXXX XXXXX')}
+          <section style={{ marginBottom: '18px', padding: '16px', border: `1px solid ${orderingReady ? '#b7e4c7' : '#ffe0b2'}`, borderRadius: '10px', background: orderingReady ? '#f3fff7' : '#fffaf2' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <div>
+                <strong style={{ display: 'block', fontSize: '14px', color: 'var(--text)' }}>{orderingReady ? 'Ordering is ready' : 'Complete WhatsApp ordering setup'}</strong>
+                <span style={{ display: 'block', marginTop: '3px', fontSize: '11px', color: 'var(--text-mid)' }}>{completedChecks} of {orderingChecks.length} checks complete</span>
+              </div>
+              <span style={{ padding: '4px 9px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, background: orderingReady ? '#d8f3e2' : '#fff0d6', color: orderingReady ? '#137a42' : '#a45a00' }}>{orderingReady ? 'READY' : 'ACTION NEEDED'}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+              {orderingChecks.map(item => (
+                <div key={item.label} style={{ padding: '9px 10px', borderRadius: '8px', background: '#fff', border: '1px solid var(--border)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                  {item.complete ? <CheckCircle2 size={16} color="#16a160" /> : <AlertTriangle size={16} color="#ed8a00" />}
+                  <div><strong style={{ display: 'block', fontSize: '11px', color: 'var(--text)' }}>{item.label}</strong><span style={{ display: 'block', marginTop: '2px', fontSize: '10px', color: 'var(--text-mid)', lineHeight: 1.35 }}>{item.detail}</span></div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {formError && <div role="alert" style={{ marginBottom: '16px', padding: '11px 13px', borderRadius: '8px', border: '1px solid #ffcdd2', background: '#fff5f5', color: '#b71c1c', fontSize: '12px', lineHeight: 1.45 }}>{formError}</div>}
+
+          {field('Connection name', 'name', 'text', 'e.g. Main restaurant number', 'A clear internal label for staff.')}
+          {field('WhatsApp display number', 'displayPhone', 'text', '+91 XXXXX XXXXX', 'Must match the number shown in Meta WhatsApp Manager.')}
           {field('New access token (leave blank to keep current)', 'token', 'password', 'Only enter when rotating the Meta token')}
-          {field('Phone Number ID', 'phoneId', 'text', 'Phone ID from Meta')}
-          {field('WABA ID', 'wabaId', 'text', 'WhatsApp Business Account ID')}
-          {field('Catalog ID', 'catalogId', 'text', 'Meta commerce catalog ID')}
+          {field('Phone Number ID', 'phoneId', 'text', 'Phone Number ID from Meta', 'Numeric identifier for the sending number; this is different from the phone number.')}
+          {field('WABA ID', 'wabaId', 'text', 'WhatsApp Business Account ID', 'The WhatsApp Business Account that owns this number.')}
+          {field('Meta Catalog ID', 'catalogId', 'text', 'Commerce catalog ID', 'Required for product sync and catalog messages. Assign this catalog to the same WABA in Meta Commerce Manager.')}
 
           <section style={{ margin: '18px 0', padding: '16px', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--bg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '14px' }}>
